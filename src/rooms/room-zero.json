@@ -1,0 +1,42 @@
+{
+  "id": "room-zero",
+  "name": "The Hope of Midnight",
+  "venue": "gilded-museum",
+  "headline": "MIDNIGHT DIAMOND VANISHES FROM GILDED MUSEUM",
+  "size": { "w": 12, "d": 9, "h": 3.2 },
+  "key": { "root": "D", "mode": "dorian" },
+  "tempo": 112,
+  "parTime": 45,
+  "spawn": { "x": -3, "z": 3.75, "facing": 110 },
+  "entry": { "id": "entry", "x": -3, "z": 4.5, "wall": "s", "phase": "in" },
+  "blocks": [
+    { "x": 0, "z": -3.2, "w": 0.7, "d": 0.7, "h": 0.95, "style": "pedestal" },
+    { "x": -3.4, "z": -3.25, "w": 0.8, "d": 0.8, "h": 1.25, "style": "case" },
+    { "x": 3.4, "z": -3.25, "w": 0.8, "d": 0.8, "h": 1.25, "style": "case" },
+    { "x": -4.6, "z": 0.55, "w": 0.3, "d": 0.3, "h": 1.2, "style": "sensor" },
+    { "x": -1.5, "z": 1.3, "w": 0.9, "d": 0.6, "h": 1.0, "style": "plinth" },
+    { "x": 3.1, "z": 1.2, "w": 0.6, "d": 0.9, "h": 1.0, "style": "plinth" },
+    { "x": -1.5, "z": -2.5, "w": 0.18, "d": 0.18, "h": 1.0, "style": "post" },
+    { "x": 1.5, "z": -2.5, "w": 0.18, "d": 0.18, "h": 1.0, "style": "post" }
+  ],
+  "mounts": [ { "id": "m1", "x": -4.6, "z": 2.2 } ],
+  "sensors": [ { "id": "s1", "x": -4.6, "z": 0.55 } ],
+  "emitters": [
+    { "id": "feed", "type": "static", "x": 6, "z": 2.2, "angle": 180, "bands": ["high"], "note": 1, "housing": "wall" },
+    { "id": "grid-a", "type": "static", "x": -6, "z": 0, "angle": 0, "bands": ["low", "mid", "high"], "poweredBy": "s1", "note": 5, "housing": "wall" },
+    { "id": "grid-b", "type": "static", "x": -6, "z": -0.22, "angle": 0, "bands": ["low", "mid", "high"], "poweredBy": "s1", "note": 3, "housing": "wall" },
+    { "id": "pulse-a", "type": "pulse", "x": -6, "z": -1.05, "angle": 0, "bands": ["low", "mid", "high"], "pulse": { "period": 2, "duty": 0.5, "offset": 0 }, "phase": "in", "note": 4, "housing": "wall" },
+    { "id": "pulse-b", "type": "pulse", "x": 6, "z": -1.9, "angle": 180, "bands": ["low", "mid", "high"], "pulse": { "period": 2, "duty": 0.5, "offset": 1 }, "phase": "in", "note": 6, "housing": "wall" },
+    { "id": "sweep-w", "type": "sweeper", "x": -1.5, "z": -2.5, "angle": 0, "bands": ["mid"], "sweep": { "speed": 30 }, "range": 1.6, "startOffset": 0.12, "note": 2, "housing": "post" },
+    { "id": "sweep-e", "type": "sweeper", "x": 1.5, "z": -2.5, "angle": 180, "bands": ["mid"], "sweep": { "speed": -30 }, "range": 1.6, "startOffset": 0.12, "note": 7, "housing": "post" },
+    { "id": "alarm", "type": "static", "x": 1.4, "z": 4.5, "angle": -90, "bands": ["high"], "threat": "disturbed", "note": 2, "housing": "wall" },
+    { "id": "fan-hi", "type": "sweeper", "x": 0, "z": -3.2, "angle": 45, "bands": ["high"], "phase": "out", "spokes": 2, "sweep": { "speed": 14 }, "startOffset": 0.55, "tint": "prism", "note": 5, "housing": "none" },
+    { "id": "fan-mid", "type": "sweeper", "x": 0, "z": -3.2, "angle": 135, "bands": ["mid"], "phase": "out", "spokes": 2, "sweep": { "speed": 14 }, "startOffset": 0.55, "tint": "prism", "note": 3, "housing": "none" }
+  ],
+  "exits": [
+    { "id": "east", "x": 6, "z": 3.4, "wall": "e", "phase": "out" },
+    { "id": "west", "x": -6, "z": 3.4, "wall": "w", "phase": "out", "closesOnAlert": true }
+  ],
+  "prize": { "kind": "diamond", "x": 0, "z": -3.2, "value": 1250000, "name": "The Hope of Midnight" },
+  "belt": ["mirror"]
+}

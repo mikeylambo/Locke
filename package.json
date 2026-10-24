@@ -1,0 +1,25 @@
+{
+  "name": "light-fingers",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "npm run check && npm test && npm run build"
+  },
+  "dependencies": {
+    "@slu/web-shell": "file:vendor/slu-web-shell",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/three": "^0.180.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.7"
+  }
+}
