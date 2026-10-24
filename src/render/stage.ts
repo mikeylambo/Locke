@@ -84,7 +84,7 @@ export class Stage {
     // Keep the whole diorama framed on portrait phones.
     this.distTarget = this.baseDist * (w / h < 1 ? Math.min(1.9, 1.15 / (w / h)) : 1);
     this.camera.updateProjectionMatrix();
-    const amount = 1.1;
+    const amount = 0.8;
     (this.hTilt.uniforms.h as { value: number }).value = amount / (w * pr);
     (this.vTilt.uniforms.v as { value: number }).value = amount / (h * pr);
   }

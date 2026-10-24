@@ -90,6 +90,9 @@ export class BeamView {
     return out.copy(P.laser);
   }
 
+  /** Colour-independent beam language: each type gets its own pattern. */
+  patterns = false;
+
   update(segments: BeamSegment[], dt: number, time: number) {
     this.uniforms.uTime.value = time;
     for (const [k, v] of this.flash) { const n = v - dt; if (n <= 0) this.flash.delete(k); else this.flash.set(k, n); }
@@ -102,7 +105,8 @@ export class BeamView {
       const fl = this.flash.get(seg.emitter) ?? 0;
       const warnOnly = !seg.live;
       const intensity = warnOnly ? 0.35 + seg.warn * 0.9 : 1;
-      const dash = warnOnly ? 6 : seg.type === "tripwire" ? 9 : 0;
+      const pattern = !this.patterns ? 0 : seg.type === "pulse" ? 3.5 : seg.type === "sweeper" ? (seg.tint === "prism" ? 0 : 12) : seg.type === "oscillator" ? 6 : 0;
+      const dash = warnOnly ? 6 : seg.type === "tripwire" ? 9 : pattern;
       const whiten = Math.min(1, fl * 3);
       const cr = col.r + (1 - col.r) * whiten, cg = col.g + (1 - col.g) * whiten, cb = col.b + (1 - col.b) * whiten;
       for (const [L, width, inten, flat, yy] of [

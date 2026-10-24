@@ -149,13 +149,15 @@ kbd { font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacin
 .headline { margin: 10px 0 12px; font-family: var(--news); font-weight: 900; font-size: clamp(26px, 5vw, 42px); line-height: 1.02; text-transform: uppercase; text-align: center; letter-spacing: -0.01em; }
 .body { display: grid; grid-template-columns: 1.15fr 1fr; gap: 16px; border-top: 1px solid var(--paper-ink); padding-top: 12px; }
 .photo { margin: 0; aspect-ratio: 4 / 3; background: #2a2620; overflow: hidden; border: 1px solid var(--paper-ink); }
-.photo img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(0.35) contrast(1.35) brightness(1.15); mix-blend-mode: multiply; }
+.photo img { width: 100%; height: 100%; object-fit: cover; filter: grayscale(1) sepia(0.4) brightness(2.4) contrast(1.25); }
+.photo { position: relative; }
+.photo::after { content: ""; position: absolute; inset: 0; background: radial-gradient(rgba(0,0,0,0.25) 1px, transparent 1.2px); background-size: 4px 4px; mix-blend-mode: multiply; }
 .stats { margin: 0; display: flex; flex-direction: column; gap: 8px; }
 .stats div { display: grid; grid-template-columns: 1fr auto; align-items: baseline; border-bottom: 1px dotted rgba(26, 22, 18, 0.5); padding-bottom: 4px; }
 .stats dt { font-family: var(--news); font-style: italic; font-size: 15px; }
 .stats dd { margin: 0; font-family: var(--cond); font-weight: 900; font-size: 26px; font-variant-numeric: tabular-nums; }
 .stats small { grid-column: 1 / -1; font-family: var(--news); font-size: 12px; opacity: 0.6; }
-.grade { position: absolute; right: 18px; bottom: 16px; font-family: var(--display); font-size: 58px; color: #a3141f; border: 5px double #a3141f; padding: 0 16px; transform: rotate(-12deg) scale(3); opacity: 0; display: flex; align-items: center; gap: 8px; mix-blend-mode: multiply; }
+.grade { position: absolute; left: 34px; bottom: 26px; font-family: var(--display); font-size: 58px; color: #a3141f; border: 5px double #a3141f; padding: 0 16px; transform: rotate(-12deg) scale(3); opacity: 0; display: flex; align-items: center; gap: 8px; mix-blend-mode: multiply; }
 .grade.stamped { animation: stampIn2 0.35s cubic-bezier(.2, 1.5, .5, 1) forwards; }
 @keyframes stampIn2 { to { transform: rotate(-12deg) scale(1); opacity: 0.92; } }
 .grade-gentleman { font-size: 40px; color: #8a6312; border-color: #8a6312; }
@@ -193,3 +195,20 @@ kbd { font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacin
   .menu-row { font-size: 20px; }
   .card h2 { font-size: 34px; }
 }
+
+/* Rewind: a sepia scrub over the whole frame. */
+.rewinding #game { filter: sepia(0.75) contrast(1.1) saturate(0.7); }
+.rewinding .hud::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255, 230, 180, 0.04) 0 2px, transparent 2px 5px); pointer-events: none; }
+
+/* ——— Dev room editor ——— */
+.editor { position: fixed; top: 12px; right: 12px; width: 300px; max-height: calc(100vh - 24px); overflow: auto; z-index: 50; background: rgba(8, 7, 11, 0.94); border: 1px solid rgba(217, 170, 82, 0.5); font: 13px/1.35 ui-monospace, Menlo, monospace; color: var(--cream); padding: 10px; user-select: text; -webkit-user-select: text; touch-action: auto; }
+.editor header { font-family: var(--cond); font-size: 18px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold-hi); margin-bottom: 8px; }
+.editor header small { font-size: 11px; color: var(--red); margin-left: 6px; }
+.editor .tools, .editor .actions { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.editor button { font: inherit; background: #17141d; color: var(--cream); border: 1px solid rgba(217, 170, 82, 0.35); padding: 3px 7px; cursor: pointer; }
+.editor button.on, .editor button:hover { border-color: var(--gold-hi); color: var(--gold-hi); }
+.editor .props label { display: grid; grid-template-columns: 90px 1fr; gap: 6px; align-items: center; margin: 2px 0; color: rgba(243, 231, 204, 0.75); }
+.editor .props input { font: inherit; background: #0f0d13; color: var(--cream); border: 1px solid #33293d; padding: 2px 4px; width: 100%; }
+.editor .props input[type="checkbox"] { width: auto; }
+.editor h4 { margin: 4px 0; color: var(--gold); text-transform: uppercase; letter-spacing: 0.15em; }
+.editor .help, .editor .hintline { color: rgba(243, 231, 204, 0.5); font-size: 11px; }

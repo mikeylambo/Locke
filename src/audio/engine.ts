@@ -557,6 +557,16 @@ export class AudioEngine {
         this.play("shutter");
         break;
       }
+      case "rewind": {
+        const o = ctx.createOscillator(); o.type = "sawtooth";
+        o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(180, t + 0.5);
+        const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1400;
+        const g = ctx.createGain(); this.env(g, t, 0.05, 0.02, 0.5);
+        o.connect(lp).connect(g).connect(this.sfxBus); o.start(t); o.stop(t + 0.6);
+        this.duck = 0.5; this.applyVolumes();
+        break;
+      }
+      case "rewind.end": this.duck = 1; this.applyVolumes(); this.blip(500, 0.12, 0.05, "sine", this.sfxBus, t, 1100); break;
       case "restart": this.blip(1400, 0.12, 0.05, "sine", this.uiBus, t, 700); break;
       case "ui.move": this.blip(880, 0.03, 0.04, "triangle", this.uiBus); break;
       case "ui.confirm": this.bell(t, mtof(this.key.degree(5, 5)), 0.05, 0.5, this.uiBus); this.bell(t + 0.06, mtof(this.key.degree(8, 5)), 0.05, 0.7, this.uiBus); break;

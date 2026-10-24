@@ -15,9 +15,9 @@ export interface MenuItem {
 type Sound = (id: string) => void;
 
 const GLYPHS: Record<Device, Record<string, string>> = {
-  kbm: { move: "WASD", stretch: "Space", crouch: "C", flatten: "F", interact: "Click", rotate: "Q / E", restart: "R", orbit: "Right-drag", cycle: "Tab" },
-  pad: { move: "L", stretch: "RT", crouch: "B", flatten: "Y", interact: "A", rotate: "LB / RB", restart: "View", orbit: "R", cycle: "X" },
-  touch: { move: "Drag", stretch: "Hand", crouch: "Crouch", flatten: "Flat", interact: "Use", rotate: "Twist", restart: "↺", orbit: "Two fingers", cycle: "" }
+  kbm: { move: "WASD", stretch: "Space", crouch: "C", flatten: "F", interact: "Click", rotate: "Q / E", restart: "R", orbit: "Right-drag", cycle: "Tab", rewind: "T" },
+  pad: { move: "L", stretch: "RT", crouch: "B", flatten: "Y", interact: "A", rotate: "LB / RB", restart: "View", orbit: "R", cycle: "X", rewind: "LT" },
+  touch: { move: "Drag", stretch: "Hand", crouch: "Crouch", flatten: "Flat", interact: "Use", rotate: "Twist", restart: "↺", orbit: "Two fingers", cycle: "", rewind: "" }
 };
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, html?: string) => {
@@ -166,7 +166,7 @@ export class UI {
 
   private renderHint() {
     const g = GLYPHS[this.device];
-    const rows: Array<[string, string]> = [["Move", g.move!], ["Stretch", g.stretch!], ["Crouch", g.crouch!], ["Flatten", g.flatten!], ["Use", g.interact!], ["Rotate", g.rotate!], ["Look", g.orbit!]];
+    const rows: Array<[string, string]> = [["Move", g.move!], ["Stretch", g.stretch!], ["Crouch", g.crouch!], ["Flatten", g.flatten!], ["Use", g.interact!], ["Rotate", g.rotate!], ["Rewind", g.rewind!], ["Look", g.orbit!]];
     this.hintEl.innerHTML = rows.map(([a, k]) => `<div><kbd>${k}</kbd><span>${a}</span></div>`).join("");
   }
 

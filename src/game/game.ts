@@ -10,31 +10,33 @@ import { Stage, type Quality } from "../render/stage";
 import { toonLights } from "../render/toon";
 import { emitterActive, sweepAngle } from "../sim/beams";
 import { dist, pointSegDist, v2 } from "../sim/math2d";
-import { DT, HeistRun, emptyInput, STRETCH_MAX, type SimEvent, type SimInput } from "../sim/run";
+import { DT, HeistRun, emptyInput, STRETCH_MAX, type RunSnapshot, type SimEvent, type SimInput } from "../sim/run";
 import type { RoomDef } from "../sim/roomTypes";
 import { UI, type MenuItem } from "../ui/ui";
 import { loadRoom } from "./rooms";
 
 interface Settings {
   masterVolume: number; musicVolume: number; sfxVolume: number;
-  reducedMotion: boolean; cameraSensitivity: number; quality: "Auto" | "High" | "Low";
+  reducedMotion: boolean; cameraSensitivity: number; quality: "Auto" | "High" | "Low"; beamPatterns: boolean;
 }
-const DEFAULTS: Settings = { masterVolume: 0.9, musicVolume: 0.75, sfxVolume: 0.9, reducedMotion: false, cameraSensitivity: 0.5, quality: "Auto" };
+const DEFAULTS: Settings = { masterVolume: 0.9, musicVolume: 0.75, sfxVolume: 0.9, reducedMotion: false, cameraSensitivity: 0.5, quality: "Auto", beamPatterns: false };
+const REWIND_SECONDS = 3;
+const SNAP_EVERY = 6; // ticks (20 Hz history)
 
 interface RoomRecord { bestTime?: number; bestGrade?: string; bestClearance?: number; clears: number }
 interface Progress { rooms: Record<string, RoomRecord> }
 
 const GRADE_ORDER = ["C", "B", "A", "S", "Gentleman"];
 
-export function gradeFor(time: number, par: number, alarms: number): string {
-  if (alarms === 0 && time <= par) return "Gentleman";
+export function gradeFor(time: number, par: number, alarms: number, rewinds = 0): string {
+  if (alarms === 0 && time <= par && rewinds === 0) return "Gentleman";
   if (alarms === 0 && time <= par * 1.5) return "S";
   if (alarms <= 1 && time <= par * 2) return "A";
   if (alarms <= 2) return "B";
   return "C";
 }
 
-type Mode = "press" | "title" | "play" | "paused" | "results" | "caught";
+type Mode = "press" | "title" | "play" | "paused" | "results" | "caught" | "editor";
 
 export class Game {
   stage: Stage;
@@ -64,6 +66,10 @@ export class Game {
   private photo: string | undefined;
   private wantPhoto = false;
   private pendingEdges: SimInput = emptyInput();
+  private history: RunSnapshot[] = [];
+  private rewinding = false;
+  private rewinds = 0;
+  private editor: { show(v: boolean): void } | null = null;
 
   constructor(private canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     const storage = new BrowserStorage("light-fingers");
@@ -76,13 +82,17 @@ export class Game {
     this.input.onDevice((d) => this.ui.setDevice(d));
     this.ui.setDevice(this.input.device);
     this.stage.scene.add(this.beams.group, this.locke.root);
+    const unlock = () => this.audio.unlock();
+    addEventListener("pointerdown", unlock, { once: true });
+    addEventListener("keydown", unlock, { once: true });
   }
 
   async boot() {
     try { await this.settings.load(); } catch { /* defaults */ }
     try { const r = await this.save.loadWithRecovery(); if (r.data) this.progress = r.data; } catch { /* fresh */ }
     this.applySettings();
-    this.loadRoom(await loadRoom("room-zero"));
+    this.loadRoom(await loadRoom(new URLSearchParams(location.search).get("room") ?? "room-zero"));
+    if (new URLSearchParams(location.search).has("editor")) { await this.openEditor(); requestAnimationFrame((t) => this.frame(t)); return; }
     const go = this.ui.pressStart(() => this.toTitle(true));
     const anyKey = (e: Event) => { if (this.mode === "press") { e.preventDefault(); go(); } };
     addEventListener("keydown", anyKey, { once: true });
@@ -90,11 +100,38 @@ export class Game {
     if (import.meta.env.DEV || location.search.includes("debug")) (window as unknown as { game: Game }).game = this;
   }
 
+  private async openEditor() {
+    const { RoomEditor } = await import("../editor/editor");
+    this.mode = "editor";
+    this.ui.closeAll();
+    this.ui.showHud(false);
+    this.editor = new RoomEditor({
+      room: () => this.room,
+      apply: (r) => { this.room = r; this.audio.setRoom(r); this.rebuildRoom(); this.newRun(); },
+      camera: () => this.stage.camera,
+      canvas: this.canvas,
+      scene: this.stage.scene,
+      playtest: () => { this.editor?.show(false); this.startPlay(); }
+    });
+  }
+
+  private backToEditor() {
+    this.ui.closeAll();
+    this.audio.setPaused(false);
+    this.mode = "editor";
+    this.ui.showHud(false);
+    this.newRun();
+    this.editor?.show(true);
+  }
+
+  private leave() { if (this.editor) this.backToEditor(); else this.toTitle(); }
+
   private applySettings() {
     const s = this.settings.snapshot();
     this.audio.setVolumes({ master: s.masterVolume, music: s.musicVolume, sfx: s.sfxVolume });
     this.input.sensitivity = 0.4 + s.cameraSensitivity * 1.4;
     document.documentElement.classList.toggle("reduced", s.reducedMotion);
+    this.beams.patterns = s.beamPatterns;
     const want: Quality | null = s.quality === "High" ? "high" : s.quality === "Low" ? "low" : null;
     if (want && want !== this.stage.quality) { this.stage.setQuality(want); this.rebuildRoom(); }
     this.qualityLocked = s.quality !== "Auto";
@@ -121,6 +158,9 @@ export class Game {
   private newRun() {
     this.run = new HeistRun(this.room);
     this.acc = 0;
+    this.history = [];
+    this.rewinds = 0;
+    this.rewinding = false;
     this.celebrate = -1;
     this.resultsTimer = -1;
     this.photo = undefined;
@@ -164,7 +204,7 @@ export class Game {
     if (this.mode !== "play") return;
     this.mode = "paused";
     this.audio.setPaused(true);
-    this.ui.pause(() => this.resume(), () => this.restart(), () => this.openSettings(), () => { this.audio.setPaused(false); this.toTitle(); });
+    this.ui.pause(() => this.resume(), () => this.restart(), () => this.openSettings(), () => { this.audio.setPaused(false); this.leave(); });
   }
 
   private resume() {
@@ -181,6 +221,7 @@ export class Game {
       { id: "music", label: "Music", kind: "slider", get: () => s.get("musicVolume"), set: (v) => patch({ musicVolume: v as number }) },
       { id: "sfx", label: "Effects", kind: "slider", get: () => s.get("sfxVolume"), set: (v) => patch({ sfxVolume: v as number }) },
       { id: "cam", label: "Camera Speed", kind: "slider", get: () => s.get("cameraSensitivity"), set: (v) => patch({ cameraSensitivity: v as number }) },
+      { id: "patterns", label: "Beam Patterns", kind: "toggle", get: () => s.get("beamPatterns"), set: (v) => patch({ beamPatterns: v as boolean }) },
       { id: "motion", label: "Reduced Motion", kind: "toggle", get: () => s.get("reducedMotion"), set: (v) => patch({ reducedMotion: v as boolean }) },
       { id: "quality", label: "Quality", kind: "choice", choices: ["Auto", "High", "Low"], get: () => s.get("quality"), set: (v) => patch({ quality: v as Settings["quality"] }) }
     ];
@@ -198,7 +239,11 @@ export class Game {
     if (this.ui.open && this.mode !== "play") this.ui.handle(f);
 
     // Simulation.
-    if (this.mode === "title") {
+    if (this.mode === "editor") {
+      this.stepSim(emptyInput(), dt);
+      this.cameraInput(f);
+      this.stage.focus(0, 0, 0);
+    } else if (this.mode === "title") {
       this.stepSim(emptyInput(), dt);
       this.stage.orbit(dt * (reduced ? 0.02 : 0.06), 0);
       this.stage.focus(0, 0, 0);
@@ -209,7 +254,12 @@ export class Game {
       }
       if (this.mode === "play" || this.mode === "results" || this.mode === "caught") {
         this.cameraInput(f);
-        this.stepSim(this.mode === "play" ? this.simInput(f) : emptyInput(), dt);
+        const canRewind = this.mode === "play" && (this.run.phase === "in" || this.run.phase === "out") && this.history.length > 1;
+        if (f.rewind && canRewind) this.rewindStep();
+        else {
+          if (this.rewinding) { this.rewinding = false; this.audio.play("rewind.end"); document.documentElement.classList.remove("rewinding"); }
+          this.stepSim(this.mode === "play" ? this.simInput(f) : emptyInput(), dt);
+        }
       }
       this.stage.focus(this.run.locke.pos.x, this.run.locke.pos.z, 0.3);
     } else if (this.mode === "paused") {
@@ -266,10 +316,29 @@ export class Game {
       this.pendingEdges = e;
       e.crouch = e.flatten = e.interact = e.cycle = false; e.rotate = 0;
       for (const ev of this.run.step(si)) this.onEvent(ev);
+      if (this.run.tick % SNAP_EVERY === 0 && (this.run.phase === "in" || this.run.phase === "out")) {
+        this.history.push(this.run.snapshot());
+        if (this.history.length > (REWIND_SECONDS * 120) / SNAP_EVERY) this.history.shift();
+      }
       this.acc -= DT;
       steps++;
     }
     if (steps === 12) this.acc = 0;
+  }
+
+  /** Campaign assist: scrub back through the last three seconds. */
+  private rewindStep() {
+    if (!this.rewinding) {
+      this.rewinding = true;
+      this.rewinds++;
+      this.audio.play("rewind");
+      document.documentElement.classList.add("rewinding");
+    }
+    // Two history frames per render frame ≈ 2× speed.
+    for (let i = 0; i < 2 && this.history.length > 1; i++) this.history.pop();
+    const snap = this.history[this.history.length - 1];
+    if (snap) this.run.restore(snap);
+    this.acc = 0;
   }
 
   private panOf(x: number, z: number) {
@@ -328,7 +397,7 @@ export class Game {
 
   private showResults() {
     const s = this.run.stats;
-    const grade = gradeFor(s.time, this.room.parTime, s.alarms);
+    const grade = gradeFor(s.time, this.room.parTime, s.alarms, this.rewinds);
     const rec = this.progress.rooms[this.room.id] ?? { clears: 0 };
     const best = rec.bestTime === undefined || s.time < rec.bestTime;
     rec.clears++;
@@ -340,7 +409,7 @@ export class Game {
     this.mode = "results";
     this.ui.showHud(false);
     this.ui.results({ headline: this.room.headline, prize: this.room.prize.name, time: s.time, par: this.room.parTime, alarms: s.alarms, clearance: s.clearance, value: s.value, grade, best, photo: this.photo },
-      () => this.restart(), () => this.toTitle());
+      () => this.restart(), () => this.leave());
   }
 
   private present(dt: number, reduced: boolean) {
@@ -357,7 +426,7 @@ export class Game {
       fed: frame.fed, emitterOn: frame.emitterOn, sweepAngles, targetMount: playing ? target : null, prizeLifted: r.prizeLifted, reduced,
       doorOpen: (id) => id === this.room.entry.id ? (r.phase === "case" || r.phase === "in") : r.exitOpen(id)
     });
-    const grade = this.celebrate >= 0 ? gradeFor(r.stats.time, this.room.parTime, r.threat) : "";
+    const grade = this.celebrate >= 0 ? gradeFor(r.stats.time, this.room.parTime, r.threat, this.rewinds) : "";
     this.locke.update(dt, {
       pos: L.pos, vel: L.vel, facing: L.facing, pose: L.pose,
       stretchPoints: L.stretch.points, armY: L.stretch.armY, stretching: L.stretch.active,
