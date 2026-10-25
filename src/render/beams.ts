@@ -9,15 +9,19 @@ const vert = /* glsl */ `
 attribute vec2 corner;      // x: 0..1 along, y: -1..1 across
 attribute vec3 iA; attribute vec3 iB; attribute vec3 iColor; attribute vec4 iParams; // width, intensity, dash, flat
 attribute float iS0;
+uniform float uPix; uniform vec3 uCam;
 varying vec2 vC; varying vec3 vColor; varying float vI; varying float vDash; varying float vAlong; varying float vFlat;
 void main(){
   vec3 P = mix(iA, iB, corner.x);
+  // Never thinner than ~1.5 px: beams are gameplay and must survive every quality tier.
+  float minW = distance(uCam, P) * uPix * (iParams.w > 0.5 ? 3.0 : 1.5);
+  float w = max(iParams.x, minW);
   vec3 dir = normalize(iB - iA + vec3(1e-5));
   vec3 side;
   if (iParams.w > 0.5) side = normalize(cross(dir, vec3(0.0, 1.0, 0.0)));
-  else side = normalize(cross(dir, normalize(cameraPosition - P)));
-  P += side * corner.y * iParams.x;
-  vC = corner; vColor = iColor; vI = iParams.y; vDash = iParams.z; vFlat = iParams.w;
+  else side = normalize(cross(dir, normalize(uCam - P)));
+  P += side * corner.y * w;
+  vC = corner; vColor = iColor; vI = iParams.y * mix(1.0, sqrt(iParams.x / w), 0.6); vDash = iParams.z; vFlat = iParams.w;
   vAlong = iS0 + corner.x * length(iB - iA);
   gl_Position = projectionMatrix * viewMatrix * vec4(P, 1.0);
 }`;
@@ -32,7 +36,7 @@ void main(){
   float dash = 1.0;
   if (vDash > 0.0) dash = step(0.5, fract(vAlong * vDash - uTime * 2.0));
   // Fade the very ends so emitters/impacts read as points of light.
-  float ends = smoothstep(0.0, 0.02, vC.x) * smoothstep(1.0, 0.98, vC.x);
+  float ends = smoothstep(0.0, 0.02, vC.x) * (1.0 - smoothstep(0.98, 1.0, vC.x));
   vec3 c = vColor * vI * prof * shimmer * dash * mix(1.0, ends, 0.6);
   gl_FragColor = vec4(c, 1.0);
 }`;
@@ -41,7 +45,7 @@ void main(){
 export class BeamView {
   readonly group = new THREE.Group();
   private layers: Array<{ mesh: THREE.Mesh; geo: THREE.InstancedBufferGeometry; a: Float32Array; b: Float32Array; c: Float32Array; p: Float32Array; s: Float32Array }> = [];
-  private readonly uniforms = { uTime: { value: 0 } };
+  readonly uniforms = { uTime: { value: 0 }, uPix: { value: 0.001 }, uCam: { value: new THREE.Vector3() } };
   private flares: THREE.Points;
   private flarePos: Float32Array;
   private flareCol: Float32Array;
@@ -60,7 +64,7 @@ export class BeamView {
       geo.setAttribute("iParams", new THREE.InstancedBufferAttribute(p, 4).setUsage(THREE.DynamicDrawUsage));
       geo.setAttribute("iS0", new THREE.InstancedBufferAttribute(s, 1).setUsage(THREE.DynamicDrawUsage));
       geo.instanceCount = 0;
-      const mat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: vert, fragmentShader: frag, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+      const mat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: vert, fragmentShader: frag, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.frustumCulled = false;
       mesh.renderOrder = 5 + i;

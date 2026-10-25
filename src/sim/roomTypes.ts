@@ -11,7 +11,7 @@ export type Phase = "in" | "out" | "both";
 export type Wall = "n" | "s" | "e" | "w";
 export type OpticKind = "mirror" | "retro" | "splitter";
 
-export interface BlockDef { x: number; z: number; w: number; d: number; h: number; style?: "plinth" | "case" | "column" | "post" | "pedestal" | "sensor" }
+export interface BlockDef { x: number; z: number; w: number; d: number; h: number; style?: "plinth" | "case" | "column" | "post" | "pedestal" | "sensor" | "rail" }
 export interface MountDef { id: string; x: number; z: number }
 export interface SensorDef { id: string; x: number; z: number }
 
@@ -69,4 +69,6 @@ export interface RoomDef {
   exits: ExitDef[];
   prize: PrizeDef;
   belt: OpticKind[];
+  /** Tutorial vaults: contact shows Disturbed but never escalates. */
+  forgiving?: boolean;
 }

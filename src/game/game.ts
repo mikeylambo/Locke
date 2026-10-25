@@ -6,25 +6,26 @@ import { BeamView } from "../render/beams";
 import { LockeView } from "../render/locke";
 import { OpticsView, PrizeView } from "../render/props";
 import { RoomView } from "../render/room";
-import { Stage, type Quality } from "../render/stage";
+import { Stage, detectTier, type Quality } from "../render/stage";
+import { DebugOverlay } from "../ui/debug";
 import { toonLights } from "../render/toon";
 import { emitterActive, sweepAngle } from "../sim/beams";
 import { dist, pointSegDist, v2 } from "../sim/math2d";
 import { DT, HeistRun, emptyInput, STRETCH_MAX, type RunSnapshot, type SimEvent, type SimInput } from "../sim/run";
 import type { RoomDef } from "../sim/roomTypes";
 import { UI, type MenuItem } from "../ui/ui";
-import { loadRoom } from "./rooms";
+import { CAMPAIGN, isTutorial, loadRoom } from "./rooms";
 
 interface Settings {
   masterVolume: number; musicVolume: number; sfxVolume: number;
-  reducedMotion: boolean; cameraSensitivity: number; quality: "Auto" | "High" | "Low"; beamPatterns: boolean;
+  reducedMotion: boolean; cameraSensitivity: number; quality: "Auto" | "Cinematic" | "Balanced" | "Performance"; beamPatterns: boolean;
 }
 const DEFAULTS: Settings = { masterVolume: 0.9, musicVolume: 0.75, sfxVolume: 0.9, reducedMotion: false, cameraSensitivity: 0.5, quality: "Auto", beamPatterns: false };
 const REWIND_SECONDS = 3;
 const SNAP_EVERY = 6; // ticks (20 Hz history)
 
 interface RoomRecord { bestTime?: number; bestGrade?: string; bestClearance?: number; clears: number }
-interface Progress { rooms: Record<string, RoomRecord> }
+interface Progress { rooms: Record<string, RoomRecord>; learned?: string[] }
 
 const GRADE_ORDER = ["C", "B", "A", "S", "Gentleman"];
 
@@ -60,9 +61,10 @@ export class Game {
   private wasOrbiting = false;
   private celebrate = -1;
   private resultsTimer = -1;
-  private hintTimer = 0;
-  private frameTimes: number[] = [];
-  private qualityLocked = false;
+  private learned = new Set<string>();
+  /** Swallows the menu-confirm press so it can't start the clock or act in the vault. */
+  private inputGrace = 0;
+  private debug: DebugOverlay | null = null;
   private photo: string | undefined;
   private wantPhoto = false;
   private pendingEdges: SimInput = emptyInput();
@@ -75,8 +77,7 @@ export class Game {
     const storage = new BrowserStorage("light-fingers");
     this.settings = new SettingsStore<Settings>(storage, "settings", { ...DEFAULTS });
     this.save = new SaveManager<Progress>(storage, "progress", 1);
-    const q: Quality = matchMedia("(pointer: coarse)").matches ? "low" : "high";
-    this.stage = new Stage(canvas, q);
+    this.stage = new Stage(canvas, detectTier());
     this.input = new Input(canvas, uiRoot);
     this.ui = new UI(uiRoot, (id) => this.audio.play(id));
     this.input.onDevice((d) => this.ui.setDevice(d));
@@ -90,14 +91,63 @@ export class Game {
   async boot() {
     try { await this.settings.load(); } catch { /* defaults */ }
     try { const r = await this.save.loadWithRecovery(); if (r.data) this.progress = r.data; } catch { /* fresh */ }
+    this.learned = new Set(this.progress.learned ?? []);
     this.applySettings();
-    this.loadRoom(await loadRoom(new URLSearchParams(location.search).get("room") ?? "room-zero"));
+    this.loadRoom(await loadRoom(new URLSearchParams(location.search).get("room") ?? this.nextRoomId()));
+    if (new URLSearchParams(location.search).has("bench")) { this.startBench(); requestAnimationFrame((t) => this.frame(t)); return; }
     if (new URLSearchParams(location.search).has("editor")) { await this.openEditor(); requestAnimationFrame((t) => this.frame(t)); return; }
     const go = this.ui.pressStart(() => this.toTitle(true));
     const anyKey = (e: Event) => { if (this.mode === "press") { e.preventDefault(); go(); } };
     addEventListener("keydown", anyKey, { once: true });
     requestAnimationFrame((t) => this.frame(t));
     if (import.meta.env.DEV || location.search.includes("debug")) (window as unknown as { game: Game }).game = this;
+    if (location.search.includes("debug")) this.debug = new DebugOverlay();
+  }
+
+  private bench: { tiers: Quality[]; i: number; t: number; samples: number[]; out: string[]; el: HTMLElement } | null = null;
+
+  /** ?bench: each tier gets 2 s warm-up + 10 s of measured gameplay in the heaviest room. */
+  private async startBench() {
+    if (this.room.id !== "room-zero") this.loadRoom(await loadRoom("room-zero"));
+    const el = document.createElement("pre");
+    el.className = "debug-overlay bench";
+    document.body.appendChild(el);
+    this.bench = { tiers: ["cinematic", "balanced", "performance"], i: -1, t: 99, samples: [], out: [], el };
+    this.startPlay();
+  }
+
+  private benchFrame(dt: number) {
+    const b = this.bench!;
+    b.t += dt;
+    if (b.t > 2) b.samples.push(dt * 1000);
+    if (b.t < 12) {
+      b.el.textContent = `BENCH ${b.tiers[b.i] ?? ""} ${(12 - b.t).toFixed(0)}s\n${b.out.join("\n")}`;
+      return;
+    }
+    if (b.i >= 0) {
+      const s = [...b.samples].sort((x, y) => x - y);
+      const avg = s.reduce((a, c) => a + c, 0) / s.length;
+      b.out.push(`${b.tiers[b.i]!.padEnd(12)} ${(1000 / avg).toFixed(1)} fps  avg ${avg.toFixed(1)} ms  p95 ${(s[Math.floor(s.length * 0.95)] ?? 0).toFixed(1)} ms`);
+    }
+    b.i++;
+    if (b.i >= b.tiers.length) { b.el.textContent = `BENCH DONE (${innerWidth}x${innerHeight} @${devicePixelRatio}x)\n${b.out.join("\n")}`; (window as unknown as { benchResult: string[] }).benchResult = b.out; this.bench = null; return; }
+    this.stage.setQuality(b.tiers[b.i]!);
+    this.rebuildRoom();
+    this.newRun();
+    b.t = 0; b.samples = [];
+  }
+
+  /** First campaign vault not yet cleared (or the last one once everything is done). */
+  private nextRoomId(after?: string): string {
+    if (after) { const i = CAMPAIGN.indexOf(after); if (i >= 0 && i < CAMPAIGN.length - 1) return CAMPAIGN[i + 1]!; }
+    return CAMPAIGN.find((id) => !this.progress.rooms[id]?.clears) ?? CAMPAIGN[CAMPAIGN.length - 1]!;
+  }
+
+  private learn(what: string) {
+    if (this.learned.has(what)) return;
+    this.learned.add(what);
+    this.progress.learned = [...this.learned];
+    void this.save.save(this.progress).catch(() => {});
   }
 
   private async openEditor() {
@@ -132,13 +182,15 @@ export class Game {
     this.input.sensitivity = 0.4 + s.cameraSensitivity * 1.4;
     document.documentElement.classList.toggle("reduced", s.reducedMotion);
     this.beams.patterns = s.beamPatterns;
-    const want: Quality | null = s.quality === "High" ? "high" : s.quality === "Low" ? "low" : null;
-    if (want && want !== this.stage.quality) { this.stage.setQuality(want); this.rebuildRoom(); }
-    this.qualityLocked = s.quality !== "Auto";
+    // Tier is decided at load (auto-detect) or by the player in Settings; never silently mid-run.
+    if (!["Auto", "Cinematic", "Balanced", "Performance"].includes(s.quality)) { s.quality = "Auto"; void this.settings.patch({ quality: "Auto" }); }
+    const want: Quality = s.quality === "Auto" ? detectTier() : (s.quality.toLowerCase() as Quality);
+    if (want !== this.stage.quality) { this.stage.setQuality(want); this.rebuildRoom(); }
   }
 
   private loadRoom(def: RoomDef) {
     this.room = def;
+    this.stage.setDist(15 * Math.max(def.size.w / 12, def.size.d / 9, 0.62));
     this.audio.setRoom(def);
     this.rebuildRoom();
     this.newRun();
@@ -177,7 +229,12 @@ export class Game {
     this.stage.freeOrbit = true;
     const rec = this.progress.rooms[this.room.id];
     const best = rec?.bestTime !== undefined ? `${rec.bestGrade ?? ""} · ${rec.bestTime.toFixed(2)}s` : null;
-    this.ui.title(() => this.startPlay(), () => this.openSettings(), best);
+    this.ui.title(() => void this.playRoom(this.nextRoomId()), () => this.openSettings(), best);
+  }
+
+  private async playRoom(id: string) {
+    if (id !== this.room.id) this.loadRoom(await loadRoom(id));
+    this.startPlay();
   }
 
   private startPlay() {
@@ -186,9 +243,8 @@ export class Game {
     this.mode = "play";
     this.newRun();
     this.ui.showHud(true);
-    this.ui.showHint(true);
-    this.hintTimer = 0;
     this.stage.snap();
+    this.inputGrace = 0.35;
   }
 
   private restart() {
@@ -223,7 +279,7 @@ export class Game {
       { id: "cam", label: "Camera Speed", kind: "slider", get: () => s.get("cameraSensitivity"), set: (v) => patch({ cameraSensitivity: v as number }) },
       { id: "patterns", label: "Beam Patterns", kind: "toggle", get: () => s.get("beamPatterns"), set: (v) => patch({ beamPatterns: v as boolean }) },
       { id: "motion", label: "Reduced Motion", kind: "toggle", get: () => s.get("reducedMotion"), set: (v) => patch({ reducedMotion: v as boolean }) },
-      { id: "quality", label: "Quality", kind: "choice", choices: ["Auto", "High", "Low"], get: () => s.get("quality"), set: (v) => patch({ quality: v as Settings["quality"] }) }
+      { id: "quality", label: "Quality", kind: "choice", choices: ["Auto", "Cinematic", "Balanced", "Performance"], get: () => s.get("quality"), set: (v) => patch({ quality: v as Settings["quality"] }) }
     ];
     this.ui.settings(items, () => this.ui.close());
   }
@@ -237,6 +293,11 @@ export class Game {
     const f = this.input.poll();
 
     if (this.ui.open && this.mode !== "play") this.ui.handle(f);
+    if (this.inputGrace > 0) {
+      this.inputGrace -= dt;
+      if (this.mode === "play") { f.interact = f.crouch = f.flatten = f.cycle = f.stretch = false; f.rotate = 0; f.move = { x: 0, y: 0 }; }
+    }
+    if (this.bench) { this.benchFrame(dt); const a = this.time * 0.7; f.move = { x: Math.cos(a), y: Math.sin(a) * 0.6 }; f.stretch = Math.sin(this.time * 0.9) > 0.85; f.orbit = { dx: dt * 0.15, dy: 0 }; }
 
     // Simulation.
     if (this.mode === "editor") {
@@ -274,20 +335,17 @@ export class Game {
     }
     if (this.celebrate >= 0) this.celebrate += dt;
 
-    // Hint card fades once the run is underway.
-    if (this.mode === "play") {
-      if (this.run.phase !== "case") this.hintTimer += dt;
-      this.ui.showHint(this.hintTimer < 4);
-    }
 
     this.present(dt, reduced);
     this.stage.update(dt, reduced);
     this.roomView.updateCutaway(new THREE.Vector3().subVectors(this.stage.camera.position, this.stage.target).setY(0).normalize(), dt);
     this.prize.face(this.stage.camera);
     this.stage.setFocusWorld(new THREE.Vector3(this.run.locke.pos.x, 0.7, this.run.locke.pos.z));
+    this.beams.uniforms.uPix.value = this.stage.pixelAngle();
+    this.beams.uniforms.uCam.value.copy(this.stage.camera.position);
     this.stage.render();
     if (this.wantPhoto) { this.wantPhoto = false; try { this.photo = this.canvas.toDataURL("image/jpeg", 0.8); } catch { /* tainted/unsupported */ } }
-    this.autoQuality(dt);
+    this.debug?.frame(now, this.stage, this.mode);
   }
 
   private cameraInput(f: InputFrame) {
@@ -349,6 +407,12 @@ export class Game {
 
   private onEvent(e: SimEvent) {
     const L = this.run.locke;
+    if (e.type === "run.start") this.learn("move");
+    if (e.type === "stretch.start" && !e.auto) this.learn("stretch");
+    if (e.type === "pose") this.learn(e.pose);
+    if (e.type === "optic.place") this.learn("place");
+    if (e.type === "optic.rotate") this.learn("rotate");
+    if (e.type === "lift") this.learn("lift");
     const pan = this.panOf(L.pos.x, L.pos.z);
     switch (e.type) {
       case "step": this.audio.play("step", { pan }); break;
@@ -395,6 +459,27 @@ export class Game {
     }
   }
 
+  /** One contextual prompt at a time, only when the room makes it relevant, gone once learned. */
+  private coachFor(toScreen: (x: number, y: number, z: number) => { x: number; y: number }): { x: number; y: number; html: string } | null {
+    const r = this.run, L = r.locke;
+    const at = () => toScreen(L.pos.x, 1.75, L.pos.z);
+    const g = (a: string) => `<kbd>${this.ui.glyph(a)}</kbd>`;
+    if (r.phase === "case" && !this.learned.has("move")) return { ...at(), html: `${g("move")}Move` };
+    if (!r.prizeLifted && !L.stretch.active && !r.canGrabPrize() && !this.learned.has("stretch")) {
+      if (dist(L.pos, r.prizePos) < STRETCH_MAX + 0.6) return { ...at(), html: `Hold ${g("stretch")}Stretch toward it` };
+    }
+    if (L.pose === "stand" && !this.learned.has("crouch")) {
+      const lowBeamNear = r.frame.segments.some((s) => s.live && s.band === "high" && pointSegDist(L.pos, s.a, s.b) < 1.0);
+      const blocked = r.frame.segments.some((s) => s.live && s.band !== "high" && pointSegDist(L.pos, s.a, s.b) < 1.0);
+      if (lowBeamNear && !blocked) return { ...at(), html: `${g("crouch")}Crouch under` };
+    }
+    if (r.belt.length && !this.learned.has("place") && r.room.mounts.length && !r.targetMount()) {
+      const m = r.room.mounts[0]!;
+      return { ...toScreen(m.x, 0.6, m.z), html: "◇" };
+    }
+    return null;
+  }
+
   private showResults() {
     const s = this.run.stats;
     const grade = gradeFor(s.time, this.room.parTime, s.alarms, this.rewinds);
@@ -408,8 +493,10 @@ export class Game {
     void this.save.save(this.progress).catch(() => {});
     this.mode = "results";
     this.ui.showHud(false);
-    this.ui.results({ headline: this.room.headline, prize: this.room.prize.name, time: s.time, par: this.room.parTime, alarms: s.alarms, clearance: s.clearance, value: s.value, grade, best, photo: this.photo },
-      () => this.restart(), () => this.leave());
+    const next = this.editor ? null : this.nextRoomId(this.room.id);
+    const hasNext = !!next && next !== this.room.id;
+    this.ui.results({ headline: this.room.headline, prize: this.room.prize.name, time: s.time, par: this.room.parTime, alarms: s.alarms, clearance: s.clearance, value: s.value, grade, best, photo: this.photo, mini: isTutorial(this.room.id) },
+      () => this.restart(), () => this.leave(), hasNext ? () => void this.playRoom(next!) : undefined);
   }
 
   private present(dt: number, reduced: boolean) {
@@ -458,7 +545,7 @@ export class Game {
       else if (target) {
         const m = this.room.mounts.find((mm) => mm.id === target)!;
         const p = toScreen(m.x, occupied ? 2.15 : 0.5, m.z);
-        if (occupied) prompt = { ...p, verb: `Take <kbd>${this.ui.device === "pad" ? "LB/RB" : this.ui.device === "touch" ? "⟲⟳" : "Q/E"}</kbd>Turn` };
+        if (occupied) prompt = { ...p, verb: this.learned.has("rotate") ? "Take" : `Take <kbd>${this.ui.glyph("rotate")}</kbd>Turn` };
         else if (r.beltKind) prompt = { ...p, verb: "Place" };
       }
       this.ui.hudFrame({
@@ -466,6 +553,7 @@ export class Game {
         stretch: L.stretch.active ? 1 - L.stretch.length / STRETCH_MAX : null, prompt, reduced
       });
       document.documentElement.dataset.optic = occupied ? "1" : "0";
+      this.ui.coach(prompt ? null : this.coachFor(toScreen), r.phase === "case" && !this.learned.has("move"));
     }
 
     // Audio frame.
@@ -488,12 +576,4 @@ export class Game {
     });
   }
 
-  private autoQuality(dt: number) {
-    if (this.qualityLocked || this.mode !== "play" || this.stage.quality === "low") return;
-    this.frameTimes.push(dt);
-    if (this.frameTimes.length < 240) return;
-    const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
-    this.frameTimes = [];
-    if (avg > 1 / 48) { this.stage.setQuality("low"); this.rebuildRoom(); }
-  }
 }

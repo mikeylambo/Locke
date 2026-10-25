@@ -107,7 +107,7 @@ class Menu {
 }
 
 export interface ResultsData {
-  headline: string; prize: string; time: number; par: number; alarms: number; clearance: number; value: number; grade: string; best: boolean; photo?: string;
+  headline: string; prize: string; time: number; par: number; alarms: number; clearance: number; value: number; grade: string; best: boolean; photo?: string; mini?: boolean;
 }
 
 export class UI {
@@ -159,10 +159,27 @@ export class UI {
     this.hintEl = el("div", "hint deco-frame");
     this.flashEl = el("div", "flash");
     this.toastEl = el("div", "toast");
-    h.append(this.flashEl, tl, this.beltEl, this.meterEl, this.promptEl, this.hintEl, this.toastEl);
+    this.coachEl = el("div", "coach");
+    this.caseEl = el("div", "casing-hint", "Look around. The clock starts when you move.");
+    h.append(this.flashEl, tl, this.beltEl, this.meterEl, this.promptEl, this.coachEl, this.caseEl, this.toastEl);
   }
 
   setDevice(d: Device) { this.device = d; this.renderHint(); }
+
+  /** Button label for an action on the active device. */
+  glyph(action: string): string { return GLYPHS[this.device][action] ?? action; }
+
+  private coachEl!: HTMLElement;
+  private caseEl!: HTMLElement;
+
+  /** Contextual teaching prompt anchored in the world; plus the first-load casing line. */
+  coach(c: { x: number; y: number; html: string } | null, casing: boolean) {
+    this.caseEl.classList.toggle("show", casing);
+    if (!c) { this.coachEl.classList.remove("show"); return; }
+    this.coachEl.classList.add("show");
+    this.coachEl.style.transform = `translate(${c.x}px, ${c.y}px)`;
+    if (this.coachEl.dataset.h !== c.html) { this.coachEl.innerHTML = c.html; this.coachEl.dataset.h = c.html; }
+  }
 
   private renderHint() {
     const g = GLYPHS[this.device];
@@ -291,7 +308,8 @@ export class UI {
     this.present(node);
   }
 
-  results(r: ResultsData, onAgain: () => void, onTitle: () => void) {
+  results(r: ResultsData, onAgain: () => void, onTitle: () => void, onNext?: () => void) {
+    if (r.mini) return this.miniResults(r, onAgain, onNext ?? onTitle);
     const node = el("div", "screen results-screen");
     const fmt = (t: number) => { const m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(2).padStart(5, "0")}`; };
     const money = "$" + r.value.toLocaleString("en-US");
@@ -318,6 +336,7 @@ export class UI {
         ${r.best ? `<div class="best-ribbon">Personal best</div>` : ""}
       </article>`;
     const menu = new Menu([
+      ...(onNext ? [{ id: "next", label: "Next Vault", action: onNext }] : []),
       { id: "again", label: "Again", action: onAgain },
       { id: "title", label: "Title", action: onTitle }
     ], this.sound);
@@ -326,6 +345,17 @@ export class UI {
     this.present(node, menu);
     setTimeout(() => this.sound("paper"), 80);
     setTimeout(() => { node.querySelector(".grade")?.classList.add("stamped"); this.sound("stamp"); }, 900);
+  }
+
+  /** Tutorial clear: a clipping, not a full front page. */
+  private miniResults(r: ResultsData, onAgain: () => void, onNext: () => void) {
+    const node = el("div", "screen results-screen");
+    node.innerHTML = `<article class="paper mini"><header class="mast"><h3>Extra!</h3></header><h1 class="headline">${r.headline}</h1><p class="byline">${r.prize} · $${r.value.toLocaleString("en-US")}</p></article>`;
+    const menu = new Menu([{ id: "next", label: "Next Vault", action: onNext }, { id: "again", label: "Again", action: onAgain }], this.sound);
+    menu.root.classList.add("results-menu");
+    node.appendChild(menu.root);
+    this.present(node, menu);
+    setTimeout(() => this.sound("paper"), 80);
   }
 
   pressStart(onAny: () => void) {

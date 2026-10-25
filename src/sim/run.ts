@@ -38,7 +38,7 @@ export type SimEvent =
   | { type: "run.start" }
   | { type: "step"; foot: 0 | 1; pos: V2 }
   | { type: "pose"; pose: Pose }
-  | { type: "stretch.start" }
+  | { type: "stretch.start"; auto?: boolean }
   | { type: "stretch.bump" }
   | { type: "stretch.release"; length: number }
   | { type: "stretch.snap" }
@@ -377,7 +377,7 @@ export class HeistRun {
       S.armBand = L.pose === "crouch" ? "low" : "mid"; S.armY = L.pose === "crouch" ? 0.42 : 0.95;
       S.points = [this.shoulder()];
       S.heading = degFromDir(sub(this.prizePos, S.points[0]!));
-      this.emit({ type: "stretch.start" });
+      this.emit({ type: "stretch.start", auto: true });
       for (let i = 0; i < 40 && !this.prizeLifted; i++) this.advanceHand(0.05);
       if (!this.prizeLifted) this.release();
       return;
@@ -396,8 +396,14 @@ export class HeistRun {
         this.belt.splice(this.belt.indexOf(kind), 1);
         this.selected = 0;
         const facing = this.locke.facing;
-        const angle = ((Math.round((facing + 90) / 15) * 15) % 360 + 360) % 360;
-        this.optics.push({ mountId: mount, kind, angle });
+        const base = ((Math.round((facing + 90) / 15) * 15) % 360 + 360) % 360;
+        const op = { mountId: mount, kind, angle: base };
+        this.optics.push(op);
+        // Never open the mirror straight into Locke's own face: take the nearest safe 15° step.
+        for (const k of [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6]) {
+          op.angle = (((base + k * 15) % 360) + 360) % 360;
+          if (!this.touchesLocke(this.beams.trace(this.world(), this.fed))) break;
+        }
         this.emit({ type: "optic.place", mountId: mount, kind });
         return;
       }
@@ -435,6 +441,11 @@ export class HeistRun {
     return shapes;
   }
 
+  private touchesLocke(frame: BeamFrame): boolean {
+    const shapes = this.bodyShapes();
+    return frame.segments.some((seg) => seg.live && shapes.some((sh) => sh.bands.includes(seg.band) && segSegDist(sh.a, sh.b, seg.a, seg.b) - sh.r < 0.05));
+  }
+
   private checkContacts() {
     if (this.phase !== "in" && this.phase !== "out") return;
     const L = this.locke;
@@ -451,7 +462,7 @@ export class HeistRun {
       }
     }
     if (hit && L.grace <= 0) {
-      this.threat = Math.min(3, this.threat + 1);
+      this.threat = Math.min(this.room.forgiving ? 1 : 3, this.threat + 1);
       L.grace = GRACE;
       L.takeTimer = 0.55;
       this.release();

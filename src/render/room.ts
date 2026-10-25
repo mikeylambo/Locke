@@ -1,8 +1,10 @@
 import * as THREE from "three";
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { BlockDef, EmitterDef, ExitDef, RoomDef } from "../sim/roomTypes";
 import { BAND_Y } from "../sim/roomTypes";
 import { P, glowMaterial, goldMaterial, matteMaterial } from "./palette";
+import type { Quality } from "./stage";
 
 const floorVert = /* glsl */ `
 uniform mat4 textureMatrix;
@@ -15,7 +17,7 @@ void main(){
 }`;
 
 const floorFrag = /* glsl */ `
-uniform vec3 color; uniform sampler2D tDiffuse; uniform float uReflect; uniform vec2 uHalf; uniform vec2 uFocus; uniform float uTime;
+uniform vec3 color; uniform sampler2D tDiffuse; uniform float uReflect; uniform float uSheen; uniform vec2 uHalf; uniform vec2 uFocus; uniform float uTime;
 varying vec4 vUvR; varying vec3 vW;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
@@ -49,8 +51,44 @@ void main(){
     + texture2DProj(tDiffuse, uv + vec4(0.0, px.y, 0.0, 0.0)).rgb * 0.15
     + texture2DProj(tDiffuse, uv - vec4(0.0, px.y, 0.0, 0.0)).rgb * 0.15;
   float k = uReflect * (1.0 - gold * 0.4);
-  gl_FragColor = vec4(base + refl * k, 1.0);
+  // Baked gloss: a view-dependent sheen streak plus gold wall bounce pooling at the skirting.
+  vec3 V = normalize(cameraPosition - vW);
+  vec3 L = normalize(vec3(-0.35, 0.9, -0.6));
+  float spec = pow(max(dot(reflect(-L, vec3(0.0, 1.0, 0.0)), V), 0.0), 18.0);
+  vec2 e = uHalf - abs(p);
+  float wallGlow = exp(-min(e.x, e.y) * 2.2);
+  vec3 sheen = vec3(0.05, 0.042, 0.035) * spec * (0.6 + 0.4 * v) + vec3(0.05, 0.034, 0.014) * wallGlow;
+  gl_FragColor = vec4(base + refl * k + sheen * uSheen * (1.0 - gold * 0.5), 1.0);
 }`;
+
+/**
+ * Collapse every static mesh under `root` into one mesh per material (relative to root).
+ * The Deco trim is hundreds of tiny boxes; drawn individually it dominated frame time on iGPUs.
+ */
+export function mergeStatic(root: THREE.Object3D, keep: Set<THREE.Object3D>) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  const victims: THREE.Mesh[] = [];
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || keep.has(m) || Array.isArray(m.material)) return;
+    for (let p: THREE.Object3D | null = m; p && p !== root; p = p.parent) if (keep.has(p)) return;
+    const g = m.geometry.index ? m.geometry.clone() : m.geometry.clone();
+    g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, m.matrixWorld));
+    for (const k of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(k)) g.deleteAttribute(k);
+    if (!g.index) g.setIndex([...Array(g.attributes.position!.count).keys()]);
+    const list = buckets.get(m.material) ?? [];
+    list.push(g);
+    buckets.set(m.material, list);
+    victims.push(m);
+  });
+  for (const v of victims) v.removeFromParent();
+  for (const [mat, geos] of buckets) {
+    const merged = mergeGeometries(geos, false);
+    if (merged) root.add(new THREE.Mesh(merged, mat));
+  }
+}
 
 export interface DoorView {
   def: ExitDef;
@@ -81,11 +119,14 @@ export class RoomView {
   private motes: THREE.Points;
   private time = 0;
 
-  constructor(readonly room: RoomDef, quality: "high" | "low") {
+  constructor(readonly room: RoomDef, quality: Quality) {
     const { w, d, h } = room.size;
     this.buildFloor(w, d, quality);
     this.buildWalls(w, d, h);
-    for (const b of room.blocks) this.group.add(this.buildBlock(b));
+    const blocks = new THREE.Group();
+    for (const b of room.blocks) blocks.add(this.buildBlock(b));
+    mergeStatic(blocks, new Set());
+    this.group.add(blocks);
     for (const e of room.emitters) this.buildEmitter(e);
     for (const s of room.sensors) this.buildSensor(s.id, s.x, s.z);
     for (const m of room.mounts) this.buildMount(m.id, m.x, m.z);
@@ -99,7 +140,7 @@ export class RoomView {
     this.group.add(this.showcase);
 
     // Dust motes catching the light.
-    const n = quality === "high" ? 420 : 160;
+    const n = quality === "cinematic" ? 420 : quality === "balanced" ? 220 : 90;
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) { pos[i * 3] = (Math.random() - 0.5) * w; pos[i * 3 + 1] = Math.random() * h * 0.8; pos[i * 3 + 2] = (Math.random() - 0.5) * d; }
     const mg = new THREE.BufferGeometry();
@@ -108,14 +149,14 @@ export class RoomView {
     this.group.add(this.motes);
   }
 
-  private buildFloor(w: number, d: number, quality: "high" | "low") {
+  private buildFloor(w: number, d: number, quality: Quality) {
     const geo = new THREE.PlaneGeometry(w, d);
     const uniforms = {
       color: { value: P.floor.clone() }, tDiffuse: { value: null }, textureMatrix: { value: null },
-      uReflect: { value: quality === "high" ? 0.42 : 0 }, uHalf: { value: new THREE.Vector2(w / 2, d / 2) },
+      uReflect: { value: quality === "cinematic" ? 0.42 : 0 }, uSheen: { value: quality === "cinematic" ? 0 : 1 }, uHalf: { value: new THREE.Vector2(w / 2, d / 2) },
       uFocus: { value: new THREE.Vector2(this.room.prize.x, this.room.prize.z) }, uTime: { value: 0 }
     };
-    if (quality === "high") {
+    if (quality === "cinematic") {
       const r = new Reflector(geo, {
         clipBias: 0.003, textureWidth: Math.min(1024, window.innerWidth * 0.5), textureHeight: Math.min(1024, window.innerHeight * 0.5),
         color: P.floor, shader: { name: "DecoFloor", uniforms, vertexShader: floorVert, fragmentShader: floorFrag }
@@ -125,7 +166,7 @@ export class RoomView {
       this.floorMat = r.material as THREE.ShaderMaterial;
       this.group.add(r);
     } else {
-      // Low tier: same inlay, no mirror pass.
+      // Balanced/Performance: same inlay, baked gloss instead of a mirror render.
       const tex = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
       tex.needsUpdate = true;
       const mat = new THREE.ShaderMaterial({ uniforms: { ...uniforms, tDiffuse: { value: tex }, textureMatrix: { value: new THREE.Matrix4() } }, vertexShader: floorVert, fragmentShader: floorFrag });
@@ -218,7 +259,9 @@ export class RoomView {
         burst.position.set(u, h - 1.25, 0.01);
         g.add(burst);
       }
+      const before = this.doors.length;
       for (const wd of wallDoors) this.buildDoor(g, wd.def, wd.u, dw, dh, trimGold, gold);
+      mergeStatic(g, new Set(this.doors.slice(before).flatMap((d) => [d.shutter, d.lamp])));
       this.group.add(g);
       this.walls.push({ g, normal: s.normal, h, cur: 1 });
     }
@@ -264,11 +307,18 @@ export class RoomView {
     this.doors.push({ def, shutter, lamp, lampMat, open: initial, target: initial });
   }
 
+  private mats = new Map<string, THREE.Material>();
+  private mat<T extends THREE.Material>(key: string, make: () => T): T {
+    let m = this.mats.get(key);
+    if (!m) { m = make(); this.mats.set(key, m); }
+    return m as T;
+  }
+
   private buildBlock(b: BlockDef): THREE.Object3D {
     const g = new THREE.Group();
     g.position.set(b.x, 0, b.z);
-    const dark = matteMaterial(P.charcoal.clone().multiplyScalar(0.55), 0.6);
-    const gold = goldMaterial(0.28, 0.1);
+    const dark = this.mat("blockDark", () => matteMaterial(P.charcoal.clone().multiplyScalar(0.55), 0.6));
+    const gold = this.mat("blockGold", () => goldMaterial(0.28, 0.1));
     const style = b.style ?? "plinth";
     if (style === "post") {
       const col = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, b.h, 16), dark);
@@ -278,6 +328,47 @@ export class RoomView {
         const ring = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.012, 8, 24), gold);
         ring.rotation.x = Math.PI / 2; ring.position.y = y;
         g.add(ring);
+      }
+      return g;
+    }
+    if (style === "rail") {
+      // Brass stanchions with a sagging velvet rope: low enough for a reaching arm to pass over.
+      const long = Math.max(b.w, b.d), alongX = b.w >= b.d;
+      const n = Math.max(2, Math.round(long / 0.6) + 1);
+      const velvet = this.mat("velvet", () => new THREE.MeshStandardMaterial({ color: "#6a0f1c", roughness: 0.7 }));
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i < n; i++) {
+        const u = -long / 2 + (long / (n - 1)) * i;
+        const px = alongX ? u : 0, pz = alongX ? 0 : u;
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, b.h, 10), gold);
+        post.position.set(px, b.h / 2, pz);
+        const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.03, 16), gold);
+        foot.position.set(px, 0.015, pz);
+        const knob = new THREE.Mesh(new THREE.SphereGeometry(0.04, 12, 8), gold);
+        knob.position.set(px, b.h, pz);
+        g.add(post, foot, knob);
+        if (i < n - 1) {
+          const u2 = -long / 2 + (long / (n - 1)) * (i + 0.5);
+          pts.push(new THREE.Vector3(px, b.h - 0.05, pz), new THREE.Vector3(alongX ? u2 : 0, b.h - 0.16, alongX ? 0 : u2));
+        } else pts.push(new THREE.Vector3(px, b.h - 0.05, pz));
+      }
+      g.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), n * 12, 0.018, 6), velvet));
+      return g;
+    }
+    if (style === "column") {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(b.w / 2 * 0.8, b.w / 2 * 0.9, b.h - 0.2, 20), dark);
+      shaft.position.y = b.h / 2;
+      g.add(shaft);
+      for (const y of [0.05, b.h - 0.05]) {
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(b.w, 0.1, b.d), gold);
+        cap.position.y = y;
+        g.add(cap);
+      }
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2;
+        const fl = new THREE.Mesh(new THREE.BoxGeometry(0.012, b.h - 0.3, 0.012), gold);
+        fl.position.set(Math.cos(a) * b.w * 0.42, b.h / 2, Math.sin(a) * b.w * 0.42);
+        g.add(fl);
       }
       return g;
     }
@@ -313,10 +404,10 @@ export class RoomView {
     if (style === "case") {
       // Glass vitrine with a small treasure silhouette.
       const glassH = b.h - y;
-      const glass = new THREE.Mesh(new THREE.BoxGeometry(b.w - 0.04, glassH, b.d - 0.04), new THREE.MeshPhysicalMaterial({ color: "#a8b8c8", metalness: 0, roughness: 0.05, transparent: true, opacity: 0.16, envMapIntensity: 1.4, depthWrite: false }));
+      const glass = new THREE.Mesh(new THREE.BoxGeometry(b.w - 0.04, glassH, b.d - 0.04), this.mat("glass", () => new THREE.MeshStandardMaterial({ color: "#a8b8c8", metalness: 0, roughness: 0.05, transparent: true, opacity: 0.16, envMapIntensity: 1.4, depthWrite: false })));
       glass.position.y = y + glassH / 2;
       g.add(glass);
-      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(glass.geometry), new THREE.LineBasicMaterial({ color: P.gold.clone().multiplyScalar(1.4) }));
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(glass.geometry), this.mat("edge", () => new THREE.LineBasicMaterial({ color: P.gold.clone().multiplyScalar(1.4) })));
       edges.position.copy(glass.position);
       g.add(edges);
       const vase = new THREE.Mesh(new THREE.LatheGeometry([new THREE.Vector2(0, 0), new THREE.Vector2(0.08, 0.02), new THREE.Vector2(0.11, 0.14), new THREE.Vector2(0.05, 0.3), new THREE.Vector2(0.07, 0.36), new THREE.Vector2(0, 0.37)], 20), gold);
@@ -336,7 +427,7 @@ export class RoomView {
       bust.position.y = y;
       g.add(bust);
     } else if (style === "pedestal") {
-      const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.05, 32), new THREE.MeshStandardMaterial({ color: "#4a1420", roughness: 0.8 }));
+      const cushion = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.05, 32), this.mat("cushion", () => new THREE.MeshStandardMaterial({ color: "#4a1420", roughness: 0.8 })));
       cushion.position.y = y + 0.02;
       g.add(cushion);
     }
