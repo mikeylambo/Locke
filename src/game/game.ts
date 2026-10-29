@@ -16,6 +16,9 @@ import type { RoomDef } from "../sim/roomTypes";
 import { UI, type MenuItem } from "../ui/ui";
 import { CAMPAIGN, isTutorial, loadRoom } from "./rooms";
 import { lineFor } from "./lines";
+import VENUES_JSON from "../content/venues.json";
+const VENUES = VENUES_JSON as unknown as Record<string, { title: string; cards: string[] }>;
+const ROOM_NAMES = Object.fromEntries(Object.entries(import.meta.glob<{ name: string }>("../rooms/*.json", { eager: true, import: "default" })).map(([k, v]) => [k.replace("../rooms/", "").replace(".json", ""), v.name]));
 
 interface Settings {
   masterVolume: number; musicVolume: number; sfxVolume: number;
@@ -233,11 +236,32 @@ export class Game {
     this.stage.freeOrbit = true;
     const rec = this.progress.rooms[this.room.id];
     const best = rec?.bestTime !== undefined ? `${rec.bestGrade ?? ""} · ${rec.bestTime.toFixed(2)}s` : null;
-    this.ui.title(() => void this.playRoom(this.nextRoomId()), () => this.openSettings(), best);
+    this.ui.title(() => this.openMap(), () => this.openSettings(), best);
+  }
+
+  private openMap() {
+    const rooms = CAMPAIGN.map((id, i) => ({ id, i }));
+    const cleared = (id: string) => !!this.progress.rooms[id]?.clears;
+    const unlocked = (i: number) => i === 0 || cleared(CAMPAIGN[i - 1]!);
+    const groups = [
+      { title: VENUES.jobs!.title, rooms: rooms.filter((r) => isTutorial(r.id)) },
+      { title: VENUES["gilded-museum"]!.title, rooms: rooms.filter((r) => !isTutorial(r.id)) }
+    ].map((g) => ({ title: g.title, rooms: g.rooms.map((r) => ({ id: r.id, name: ROOM_NAMES[r.id] ?? r.id, grade: this.progress.rooms[r.id]?.bestGrade, locked: !unlocked(r.i) })) }));
+    this.ui.heistMap(groups, (id) => void this.playRoom(id), () => this.ui.close());
   }
 
   private async playRoom(id: string) {
     if (id !== this.room.id) this.loadRoom(await loadRoom(id));
+    // First time into a venue: a silent-film card.
+    const venue = isTutorial(id) ? "jobs" : this.room.venue;
+    const seen = `venue:${venue}`;
+    const card = VENUES[venue];
+    if (card && !this.learned.has(seen)) {
+      this.learn(seen);
+      this.ui.closeAll();
+      this.ui.intertitle(card.title, card.cards, () => this.startPlay());
+      return;
+    }
     this.startPlay();
   }
 

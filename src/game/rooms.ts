@@ -13,5 +13,5 @@ export async function loadRoom(id: string): Promise<RoomDef> {
 export const roomIds = () => Object.keys(files).map((k) => k.replace("../rooms/", "").replace(".json", ""));
 
 /** Campaign order: four teaching vaults, then the first real heist. */
-export const CAMPAIGN = ["tut-a", "tut-b", "tut-card", "tut-c", "room-zero"];
+export const CAMPAIGN = ["tut-a", "tut-b", "tut-card", "tut-c", "room-zero", "mus-2", "mus-3", "mus-4", "mus-5", "mus-6"];
 export const isTutorial = (id: string) => id.startsWith("tut-");

@@ -14,17 +14,25 @@ const BANDS = { stand: ["low", "mid", "high"], crouch: ["low", "mid"], flatten: 
 
 /** Best optic setup the player could make: whatever feeds the most sensors. */
 function solve(room: RoomDef): PlacedOptic[] {
-  let best: PlacedOptic[] = [], bestFed = -1;
-  const mirrors = room.belt.filter((k) => k === "mirror").length;
+  const mirrors = Math.min(room.belt.filter((k) => k === "mirror").length, room.mounts.length);
   if (!mirrors) return [];
-  for (const m of room.mounts) for (let a = 0; a < 180; a += 15) {
-    const r = new HeistRun(room);
-    r.optics = [{ mountId: m.id, kind: "mirror", angle: a }];
-    const fed = r.beams.trace(r.world()).fed.size;
-    if (fed > bestFed) { bestFed = fed; best = r.optics; }
-  }
+  const r = new HeistRun(room);
+  let best: PlacedOptic[] = [], bestFed = -1;
+  const angles = Array.from({ length: 12 }, (_, i) => i * 15);
+  const tryOptics = (o: PlacedOptic[]) => { r.optics = o; const fed = r.beams.trace(r.world()).fed.size; if (fed > bestFed) { bestFed = fed; best = o; } };
+  for (const m of room.mounts) for (const a of angles) tryOptics([{ mountId: m.id, kind: "mirror", angle: a }]);
+  if (mirrors >= 2) for (const m1 of room.mounts) for (const m2 of room.mounts) if (m1.id < m2.id)
+    for (const a of angles) for (const b of angles) tryOptics([{ mountId: m1.id, kind: "mirror", angle: a }, { mountId: m2.id, kind: "mirror", angle: b }]);
   return best;
 }
+
+test("every sensor in every room can be fed with the optics on its belt", () => {
+  for (const room of rooms) {
+    if (!room.sensors.length) continue;
+    const r = new HeistRun(room); r.optics = solve(room);
+    assert.equal(r.beams.trace(r.world()).fed.size, room.sensors.length, room.id);
+  }
+});
 
 function reachable(r: HeistRun, from: V2, goal: (p: V2) => boolean): V2 | null {
   const room = r.room, step = 0.1;
@@ -40,7 +48,13 @@ function reachable(r: HeistRun, from: V2, goal: (p: V2) => boolean): V2 | null {
     }
     const rr = POSE_RADIUS[pose] * HIT_SCALE;
     // Sweep the whole step, so a thin pose can't hop over a beam between grid cells.
-    return !segs.some((s) => (BANDS[pose] as readonly string[]).includes(s.band) && segSegDist(from, p, s.a, s.b) < rr);
+    // Flattened, Locke is card-thin across but ~0.45 m nose-to-tail along the move.
+    let a = from, bb = p;
+    if (pose === "flatten") {
+      const dx = p.x - from.x, dz = p.z - from.z, l = Math.hypot(dx, dz) || 1;
+      a = v2(from.x - (dx / l) * 0.22, from.z - (dz / l) * 0.22); bb = v2(p.x + (dx / l) * 0.24, p.z + (dz / l) * 0.24);
+    }
+    return !segs.some((s) => (BANDS[pose] as readonly string[]).includes(s.band) && segSegDist(a, bb, s.a, s.b) < rr);
   });
   const key = (i: number, j: number) => i * 10000 + j;
   const toP = (i: number, j: number) => v2(-hw + i * step, -hd + j * step);

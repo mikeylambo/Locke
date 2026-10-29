@@ -1,0 +1,174 @@
+{
+  "id": "mus-2",
+  "name": "The Sapphire Hall",
+  "venue": "gilded-museum",
+  "headline": "BLUE SAPPHIRE SLIPS THROUGH MUSEUM'S LIGHT CURTAINS",
+  "size": {
+    "w": 12,
+    "d": 9,
+    "h": 3.2
+  },
+  "key": {
+    "root": "D",
+    "mode": "dorian"
+  },
+  "tempo": 116,
+  "parTime": 40,
+  "spawn": {
+    "x": 0,
+    "z": 3.8,
+    "facing": -90
+  },
+  "entry": {
+    "id": "entry",
+    "x": 0,
+    "z": 4.5,
+    "wall": "s",
+    "phase": "in"
+  },
+  "blocks": [
+    {
+      "x": 0,
+      "z": -3.4,
+      "w": 0.7,
+      "d": 0.7,
+      "h": 0.95,
+      "style": "pedestal"
+    }
+  ],
+  "mounts": [],
+  "sensors": [],
+  "emitters": [
+    {
+      "id": "pulse-a",
+      "type": "pulse",
+      "x": -6,
+      "z": 1.6,
+      "angle": 0,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "housing": "wall",
+      "pulse": {
+        "period": 2,
+        "duty": 0.5,
+        "offset": 0
+      },
+      "phase": "both",
+      "note": 1
+    },
+    {
+      "id": "pulse-b",
+      "type": "pulse",
+      "x": 6,
+      "z": 0.0,
+      "angle": 180,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "housing": "wall",
+      "pulse": {
+        "period": 2,
+        "duty": 0.5,
+        "offset": 1
+      },
+      "phase": "both",
+      "note": 4
+    },
+    {
+      "id": "pulse-c",
+      "type": "pulse",
+      "x": -6,
+      "z": -1.6,
+      "angle": 0,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "housing": "wall",
+      "pulse": {
+        "period": 2,
+        "duty": 0.5,
+        "offset": 0
+      },
+      "phase": "both",
+      "note": 6
+    },
+    {
+      "id": "alarm",
+      "type": "static",
+      "x": 6,
+      "z": 2.8,
+      "angle": 180,
+      "bands": [
+        "high"
+      ],
+      "housing": "wall",
+      "threat": "disturbed",
+      "note": 2
+    },
+    {
+      "id": "alarm-2",
+      "type": "static",
+      "x": -6,
+      "z": -2.7,
+      "angle": 0,
+      "bands": [
+        "high"
+      ],
+      "housing": "wall",
+      "threat": "alert",
+      "note": 5
+    },
+    {
+      "id": "fan-hi",
+      "type": "sweeper",
+      "x": 0,
+      "z": -3.4,
+      "angle": 45,
+      "bands": [
+        "high"
+      ],
+      "housing": "none",
+      "phase": "out",
+      "spokes": 3,
+      "sweep": {
+        "speed": 14
+      },
+      "startOffset": 0.55,
+      "tint": "prism",
+      "note": 5
+    }
+  ],
+  "exits": [
+    {
+      "id": "east",
+      "x": 6,
+      "z": 3.6,
+      "wall": "e",
+      "phase": "out"
+    },
+    {
+      "id": "west",
+      "x": -6,
+      "z": 3.6,
+      "wall": "w",
+      "phase": "out"
+    }
+  ],
+  "prize": {
+    "kind": "diamond",
+    "x": 0,
+    "z": -3.4,
+    "value": 2400000,
+    "name": "The Star of Bombay"
+  },
+  "belt": [],
+  "theme": "museum",
+  "sign": "THE GILDED MUSEUM"
+}

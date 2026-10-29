@@ -358,6 +358,40 @@ export class UI {
     setTimeout(() => this.sound("paper"), 80);
   }
 
+  /** Heist map: every vault in order with its best grade; locked ones stay dark. */
+  heistMap(groups: Array<{ title: string; rooms: Array<{ id: string; name: string; grade?: string; locked: boolean }> }>, onPick: (id: string) => void, onBack: () => void) {
+    const node = el("div", "screen map-screen");
+    node.innerHTML = `<div class="card deco-frame wide map"><h2>The Jobs</h2></div>`;
+    const items: MenuItem[] = [];
+    for (const g of groups) for (const [i, r] of g.rooms.entries()) items.push({
+      id: r.id, label: `${i === 0 ? `<em class="venue">${g.title}</em>` : ""}<span class="room-name">${r.locked ? "· · ·" : r.name}</span>${r.grade ? `<b class="grade-chip grade-${r.grade.toLowerCase()}">${r.grade}</b>` : ""}`,
+      disabled: r.locked, action: () => onPick(r.id)
+    });
+    items.push({ id: "back", label: "Back", action: onBack });
+    const menu = new Menu(items, this.sound);
+    node.querySelector(".card")!.appendChild(menu.root);
+    const firstOpen = items.findIndex((it) => !it.disabled && it.id !== "back" && !groups.flatMap((g) => g.rooms).find((r) => r.id === it.id)?.grade);
+    menu.setFocus(firstOpen >= 0 ? firstOpen : 0, false);
+    this.present(node, menu, onBack);
+  }
+
+  /** Silent-film intertitle: cards one after another; any button advances. */
+  intertitle(title: string, cards: string[], onDone: () => void) {
+    const node = el("div", "screen intertitle-screen");
+    let i = -1;
+    const show = () => {
+      i++;
+      if (i > cards.length) { this.close(); onDone(); return; }
+      const text = i === 0 ? `<h2>${title}</h2>` : `<p>${cards[i - 1]}</p>`;
+      node.innerHTML = `<div class="film"><div class="frame">${text}</div></div>`;
+      this.sound(i === 0 ? "paper" : "ui.move");
+    };
+    const menu = { handle: (f: InputFrame) => { if (f.ui.confirm || f.interact || f.ui.back) show(); return true; } } as unknown as Menu;
+    node.addEventListener("pointerdown", show);
+    show();
+    this.present(node, menu, () => show());
+  }
+
   pressStart(onAny: () => void) {
     const node = el("div", "screen press-screen");
     node.innerHTML = `<div class="logo big"><div class="crown">${ICON.crown}</div><h1><span>Light</span><span>Fingers</span></h1><div class="rule"><i></i><b></b><i></i></div><p class="press">Press any button</p></div>`;

@@ -1,0 +1,221 @@
+{
+  "id": "mus-3",
+  "name": "The Hall of Mirrors",
+  "venue": "gilded-museum",
+  "headline": "THIEF TURNS MUSEUM'S OWN MIRRORS AGAINST IT",
+  "size": {
+    "w": 12,
+    "d": 9,
+    "h": 3.2
+  },
+  "key": {
+    "root": "D",
+    "mode": "dorian"
+  },
+  "tempo": 112,
+  "parTime": 55,
+  "spawn": {
+    "x": -4.5,
+    "z": 3.8,
+    "facing": -90
+  },
+  "entry": {
+    "id": "entry",
+    "x": -4.5,
+    "z": 4.5,
+    "wall": "s",
+    "phase": "in"
+  },
+  "blocks": [
+    {
+      "x": 0,
+      "z": -3.4,
+      "w": 0.7,
+      "d": 0.7,
+      "h": 0.95,
+      "style": "pedestal"
+    },
+    {
+      "x": 4,
+      "z": 1.0,
+      "w": 0.3,
+      "d": 0.3,
+      "h": 1.2,
+      "style": "sensor"
+    },
+    {
+      "x": -1.8,
+      "z": -2.6,
+      "w": 0.18,
+      "d": 0.18,
+      "h": 1.0,
+      "style": "post"
+    },
+    {
+      "x": 1.8,
+      "z": -2.6,
+      "w": 0.18,
+      "d": 0.18,
+      "h": 1.0,
+      "style": "post"
+    }
+  ],
+  "mounts": [
+    {
+      "id": "m1",
+      "x": -2,
+      "z": 3.0
+    },
+    {
+      "id": "m2",
+      "x": -2,
+      "z": 1.0
+    }
+  ],
+  "sensors": [
+    {
+      "id": "s1",
+      "x": 4,
+      "z": 1.0
+    }
+  ],
+  "emitters": [
+    {
+      "id": "feed",
+      "type": "static",
+      "x": 6,
+      "z": 3.0,
+      "angle": 180,
+      "bands": [
+        "high"
+      ],
+      "housing": "wall",
+      "note": 1
+    },
+    {
+      "id": "grid-a",
+      "type": "static",
+      "x": -6,
+      "z": 0.0,
+      "angle": 0,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "housing": "wall",
+      "poweredBy": "s1",
+      "note": 5
+    },
+    {
+      "id": "grid-b",
+      "type": "static",
+      "x": -6,
+      "z": -0.22,
+      "angle": 0,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "housing": "wall",
+      "poweredBy": "s1",
+      "note": 3
+    },
+    {
+      "id": "sweep-w",
+      "type": "sweeper",
+      "x": -1.8,
+      "z": -2.6,
+      "angle": 0,
+      "bands": [
+        "mid"
+      ],
+      "housing": "post",
+      "sweep": {
+        "speed": 30
+      },
+      "range": 1.5,
+      "startOffset": 0.12,
+      "note": 2
+    },
+    {
+      "id": "sweep-e",
+      "type": "sweeper",
+      "x": 1.8,
+      "z": -2.6,
+      "angle": 180,
+      "bands": [
+        "mid"
+      ],
+      "housing": "post",
+      "sweep": {
+        "speed": -30
+      },
+      "range": 1.5,
+      "startOffset": 0.12,
+      "note": 7
+    },
+    {
+      "id": "alarm",
+      "type": "static",
+      "x": 6,
+      "z": -1.4,
+      "angle": 180,
+      "bands": [
+        "high"
+      ],
+      "housing": "wall",
+      "threat": "disturbed",
+      "note": 4
+    },
+    {
+      "id": "fan-hi",
+      "type": "sweeper",
+      "x": 0,
+      "z": -3.4,
+      "angle": 45,
+      "bands": [
+        "high"
+      ],
+      "housing": "none",
+      "phase": "out",
+      "spokes": 3,
+      "sweep": {
+        "speed": 14
+      },
+      "startOffset": 0.55,
+      "tint": "prism",
+      "note": 5
+    }
+  ],
+  "exits": [
+    {
+      "id": "east",
+      "x": 6,
+      "z": 3.6,
+      "wall": "e",
+      "phase": "out"
+    },
+    {
+      "id": "west",
+      "x": -6,
+      "z": 3.6,
+      "wall": "w",
+      "phase": "out"
+    }
+  ],
+  "prize": {
+    "kind": "diamond",
+    "x": 0,
+    "z": -3.4,
+    "value": 3100000,
+    "name": "The Looking-Glass Ruby"
+  },
+  "belt": [
+    "mirror",
+    "mirror"
+  ],
+  "theme": "museum",
+  "sign": "THE GILDED MUSEUM"
+}
