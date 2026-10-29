@@ -1,4 +1,4 @@
-import { BeamEngine, type BeamFrame, type PlacedOptic, PRIZE_R } from "./beams";
+import { BeamEngine, type BeamFrame, type BeamSegment, type PlacedOptic, PRIZE_R } from "./beams";
 import { type V2, add, clamp, closestOnSeg, degFromDir, dirFromDeg, dist, len, pointSegDist, scale, segSegDist, sub, v2, wrapDeg } from "./math2d";
 import type { Band, OpticKind, RoomDef } from "./roomTypes";
 
@@ -9,7 +9,12 @@ export type Pose = "stand" | "crouch" | "flatten";
 export type RunPhase = "case" | "in" | "out" | "escaped" | "lockdown";
 
 export const POSE_BANDS: Record<Pose, Band[]> = { stand: ["low", "mid", "high"], crouch: ["low", "mid"], flatten: ["low", "mid", "high"] };
+/** Visual silhouette radius per pose: drives the closest-clearance stat. */
 export const POSE_RADIUS: Record<Pose, number> = { stand: 0.26, crouch: 0.3, flatten: 0.07 };
+/** Beam hit capsules are ~70% of the silhouette; hat, coat tails and watch chain never collide. */
+export const HIT_SCALE = 0.7;
+/** Beams leaving a placed optic can't touch Locke within about one body-width of it. */
+export const OPTIC_GRACE = 0.55;
 const POSE_SPEED: Record<Pose, number> = { stand: 2.25, crouch: 1.25, flatten: 0.95 };
 const WALL_RADIUS: Record<Pose, number> = { stand: 0.28, crouch: 0.32, flatten: 0.16 };
 
@@ -307,8 +312,11 @@ export class HeistRun {
     L.vel = add(L.vel, scale(sub(target, L.vel), k));
     const speed = len(L.vel);
     if (speed > 0.05) {
-      const want = degFromDir(L.vel);
-      L.facing += wrapDeg(want - L.facing) * (1 - Math.exp(-14 * DT));
+      // Flattened, Locke sidles: he keeps facing the way he flattened and slides side-on.
+      if (L.pose !== "flatten") {
+        const want = degFromDir(L.vel);
+        L.facing += wrapDeg(want - L.facing) * (1 - Math.exp(-14 * DT));
+      }
       // Footfalls on eighth notes: two steps per beat when moving at stride.
       const prev = L.stepPhase;
       L.stepPhase += speed * DT / 0.29;
@@ -443,7 +451,12 @@ export class HeistRun {
 
   private touchesLocke(frame: BeamFrame): boolean {
     const shapes = this.bodyShapes();
-    return frame.segments.some((seg) => seg.live && shapes.some((sh) => sh.bands.includes(seg.band) && segSegDist(sh.a, sh.b, seg.a, seg.b) - sh.r < 0.05));
+    return frame.segments.some((seg) => seg.live && !this.opticGrace(seg) && shapes.some((sh) => sh.bands.includes(seg.band) && segSegDist(sh.a, sh.b, seg.a, seg.b) - sh.r * HIT_SCALE < 0.05));
+  }
+
+  /** Light that a placed optic just redirected is harmless right next to that optic. */
+  private opticGrace(seg: BeamSegment): boolean {
+    return !!seg.fromOptic && dist(this.locke.pos, seg.a) < OPTIC_GRACE;
   }
 
   private checkContacts() {
@@ -458,7 +471,7 @@ export class HeistRun {
         const d = segSegDist(sh.a, sh.b, seg.a, seg.b);
         const c = d - sh.r;
         if (c < 1.5 && c > 0 && c < this.clearance) this.clearance = c;
-        if (c <= 0 && !hit) hit = { at: closestOnSeg(sh.a, seg.a, seg.b), emitter: seg.emitter };
+        if (d - sh.r * HIT_SCALE <= 0 && !hit && !this.opticGrace(seg)) hit = { at: closestOnSeg(sh.a, seg.a, seg.b), emitter: seg.emitter };
       }
     }
     if (hit && L.grace <= 0) {
@@ -467,9 +480,6 @@ export class HeistRun {
       L.takeTimer = 0.55;
       this.release();
       this.emit({ type: "contact", threat: this.threat, at: hit.at, emitter: hit.emitter });
-      if (this.threat === 2) {
-        for (const ex of this.room.exits) if (ex.closesOnAlert && !this.closedExits.has(ex.id)) { this.closedExits.add(ex.id); this.emit({ type: "exit.closed", id: ex.id }); }
-      }
       if (this.threat >= 3) {
         this.phase = "lockdown";
         this.lockdownTimer = LOCKDOWN_HOLD;

@@ -58,3 +58,29 @@ test("C: placing the mirror at 45° feeds the sensor and kills the grid", () => 
   assert.equal(r.phase, "escaped");
   assert.equal(r.threat, 0);
 });
+
+test("Card Trick: the gap stops a standing or crouching Locke, but a flattened sidle slips through", () => {
+  const stand = new HeistRun(load("tut-card"));
+  walk(stand, [[0, 0.3], [0, -1.2]]);
+  assert.ok(stand.locke.pos.z > -0.1, "blocked standing");
+  const crouch = new HeistRun(load("tut-card"));
+  step(crouch, 1, () => ({ crouch: true }));
+  walk(crouch, [[0, 0.3], [0, -1.2]]);
+  assert.ok(crouch.locke.pos.z > -0.1, "blocked crouched");
+  const r = new HeistRun(load("tut-card"));
+  walk(r, [[0, 0.4]]);
+  step(r, 1, () => ({ flatten: true }));
+  const facing = r.locke.facing;
+  walk(r, [[0, -1.3]]);
+  assert.ok(r.locke.pos.z < -1.0, "sidled through");
+  assert.ok(Math.abs(r.locke.facing - facing) < 1, "kept facing while sidling");
+  step(r, 1, () => ({ flatten: true }));
+  step(r, 1, () => ({ interact: true }));
+  step(r, 120);
+  assert.ok(r.locke.hasPrize);
+  step(r, 1, () => ({ flatten: true }));
+  walk(r, [[0, 0.5]]);
+  step(r, 1, () => ({ flatten: true }));
+  walk(r, [[3.6, 1.8]]);
+  assert.equal(r.phase, "escaped");
+});

@@ -15,9 +15,9 @@ export interface MenuItem {
 type Sound = (id: string) => void;
 
 const GLYPHS: Record<Device, Record<string, string>> = {
-  kbm: { move: "WASD", stretch: "Space", crouch: "C", flatten: "F", interact: "Click", rotate: "Q / E", restart: "R", orbit: "Right-drag", cycle: "Tab", rewind: "T" },
-  pad: { move: "L", stretch: "RT", crouch: "B", flatten: "Y", interact: "A", rotate: "LB / RB", restart: "View", orbit: "R", cycle: "X", rewind: "LT" },
-  touch: { move: "Drag", stretch: "Hand", crouch: "Crouch", flatten: "Flat", interact: "Use", rotate: "Twist", restart: "↺", orbit: "Two fingers", cycle: "", rewind: "" }
+  kbm: { move: "WASD", stretch: "Space", crouch: "C", flatten: "F", interact: "Click", rotate: "Q / E", rotL: "Q", rotR: "E", restart: "R", orbit: "Right-drag", cycle: "Tab", rewind: "T" },
+  pad: { move: "L", stretch: "RT", crouch: "B", flatten: "Y", interact: "A", rotate: "LB / RB", rotL: "LB", rotR: "RB", restart: "View", orbit: "R Stick", cycle: "X", rewind: "LT" },
+  touch: { move: "Drag", stretch: "Hand", crouch: "Crouch", flatten: "Flat", interact: "Use", rotate: "Twist", rotL: "⟲", rotR: "⟳", restart: "↺", orbit: "Two fingers", cycle: "", rewind: "" }
 };
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, html?: string) => {
@@ -170,6 +170,19 @@ export class UI {
   glyph(action: string): string { return GLYPHS[this.device][action] ?? action; }
 
   private coachEl!: HTMLElement;
+  private ghostEls: HTMLElement[] = [];
+
+  /** Button glyphs riding the ghost preview of each rotation step. */
+  ghostLabels(list: Array<{ x: number; y: number; html: string }>) {
+    while (this.ghostEls.length < list.length) { const e = el("div", "ghost-label"); this.hud.appendChild(e); this.ghostEls.push(e); }
+    this.ghostEls.forEach((e, i) => {
+      const l = list[i];
+      e.classList.toggle("show", !!l);
+      if (!l) return;
+      e.style.transform = `translate(${l.x}px, ${l.y}px)`;
+      if (e.innerHTML !== l.html) e.innerHTML = l.html;
+    });
+  }
   private caseEl!: HTMLElement;
 
   /** Contextual teaching prompt anchored in the world; plus the first-load casing line. */

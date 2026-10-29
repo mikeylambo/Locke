@@ -30,12 +30,13 @@
     { "id": "sweep-w", "type": "sweeper", "x": -1.5, "z": -2.5, "angle": 0, "bands": ["mid"], "sweep": { "speed": 30 }, "range": 1.6, "startOffset": 0.12, "note": 2, "housing": "post" },
     { "id": "sweep-e", "type": "sweeper", "x": 1.5, "z": -2.5, "angle": 180, "bands": ["mid"], "sweep": { "speed": -30 }, "range": 1.6, "startOffset": 0.12, "note": 7, "housing": "post" },
     { "id": "alarm", "type": "static", "x": 1.4, "z": 4.5, "angle": -90, "bands": ["high"], "threat": "disturbed", "note": 2, "housing": "wall" },
+    { "id": "alarm-2", "type": "static", "x": -6, "z": 3.0, "angle": 0, "bands": ["high"], "threat": "alert", "note": 6, "housing": "wall" },
     { "id": "fan-hi", "type": "sweeper", "x": 0, "z": -3.2, "angle": 45, "bands": ["high"], "phase": "out", "spokes": 2, "sweep": { "speed": 14 }, "startOffset": 0.55, "tint": "prism", "note": 5, "housing": "none" },
     { "id": "fan-mid", "type": "sweeper", "x": 0, "z": -3.2, "angle": 135, "bands": ["mid"], "phase": "out", "spokes": 2, "sweep": { "speed": 14 }, "startOffset": 0.55, "tint": "prism", "note": 3, "housing": "none" }
   ],
   "exits": [
     { "id": "east", "x": 6, "z": 3.4, "wall": "e", "phase": "out" },
-    { "id": "west", "x": -6, "z": 3.4, "wall": "w", "phase": "out", "closesOnAlert": true }
+    { "id": "west", "x": -6, "z": 3.4, "wall": "w", "phase": "out" }
   ],
   "prize": { "kind": "diamond", "x": 0, "z": -3.2, "value": 1250000, "name": "The Hope of Midnight" },
   "belt": ["mirror"]

@@ -9,7 +9,7 @@ import { RoomView } from "../render/room";
 import { Stage, detectTier, type Quality } from "../render/stage";
 import { DebugOverlay } from "../ui/debug";
 import { toonLights } from "../render/toon";
-import { emitterActive, sweepAngle } from "../sim/beams";
+import { emitterActive, sweepAngle, type BeamSegment } from "../sim/beams";
 import { dist, pointSegDist, v2 } from "../sim/math2d";
 import { DT, HeistRun, emptyInput, STRETCH_MAX, type RunSnapshot, type SimEvent, type SimInput } from "../sim/run";
 import type { RoomDef } from "../sim/roomTypes";
@@ -64,6 +64,8 @@ export class Game {
   private learned = new Set<string>();
   /** Swallows the menu-confirm press so it can't start the clock or act in the vault. */
   private inputGrace = 0;
+  /** Leaves the press-start screen; also fired by any gamepad button. */
+  private pressGo: (() => void) | null = null;
   private debug: DebugOverlay | null = null;
   private photo: string | undefined;
   private wantPhoto = false;
@@ -97,6 +99,7 @@ export class Game {
     if (new URLSearchParams(location.search).has("bench")) { this.startBench(); requestAnimationFrame((t) => this.frame(t)); return; }
     if (new URLSearchParams(location.search).has("editor")) { await this.openEditor(); requestAnimationFrame((t) => this.frame(t)); return; }
     const go = this.ui.pressStart(() => this.toTitle(true));
+    this.pressGo = go;
     const anyKey = (e: Event) => { if (this.mode === "press") { e.preventDefault(); go(); } };
     addEventListener("keydown", anyKey, { once: true });
     requestAnimationFrame((t) => this.frame(t));
@@ -292,7 +295,8 @@ export class Game {
     const reduced = this.settings.get("reducedMotion");
     const f = this.input.poll();
 
-    if (this.ui.open && this.mode !== "play") this.ui.handle(f);
+    if (this.mode === "press" && f.any && this.input.device === "pad" && this.pressGo) { const go = this.pressGo; this.pressGo = null; go(); }
+    else if (this.ui.open && this.mode !== "play") this.ui.handle(f);
     if (this.inputGrace > 0) {
       this.inputGrace -= dt;
       if (this.mode === "play") { f.interact = f.crouch = f.flatten = f.cycle = f.stretch = false; f.rotate = 0; f.move = { x: 0, y: 0 }; }
@@ -334,6 +338,7 @@ export class Game {
       if (this.resultsTimer < 0) this.showResults();
     }
     if (this.celebrate >= 0) this.celebrate += dt;
+    this.rewindCoach = Math.max(0, this.rewindCoach - dt);
 
 
     this.present(dt, reduced);
@@ -348,8 +353,14 @@ export class Game {
     this.debug?.frame(now, this.stage, this.mode);
   }
 
+  private orbitTravel = 0;
+  private flatTravel = 0;
+  private rewindCoach = 0;
+
   private cameraInput(f: InputFrame) {
     if (f.orbit.dx || f.orbit.dy) this.stage.orbit(-f.orbit.dx, f.orbit.dy);
+    // The look-around prompt retires after one full orbit.
+    if (this.mode === "play" && f.orbit.dx) { this.orbitTravel += Math.abs(f.orbit.dx); if (this.orbitTravel >= Math.PI * 2) this.learn("orbit"); }
     if (f.snap) this.stage.snapStep(f.snap);
     const casing = this.run.phase === "case";
     if (!f.orbiting && this.wasOrbiting && !casing) this.stage.snap();
@@ -359,7 +370,46 @@ export class Game {
   private simInput(f: InputFrame): SimInput {
     const b = this.stage.basis();
     const mv = v2(b.right.x * f.move.x + b.fwd.x * f.move.y, b.right.z * f.move.x + b.fwd.z * f.move.y);
-    return { move: mv, stretch: f.stretch, crouch: f.crouch, flatten: f.flatten, interact: f.interact, rotate: f.rotate, cycle: f.cycle };
+    if (this.run.locke.pose === "flatten" && Math.hypot(mv.x, mv.z) > 0.3) { this.flatTravel += 1 / 60; if (this.flatTravel > 0.6) this.learn("sidle"); }
+    return { move: mv, stretch: f.stretch, crouch: f.crouch, flatten: f.flatten, interact: f.interact, rotate: f.rotate * this.rotateSign(), cycle: f.cycle };
+  }
+
+  /** Where the redirected light would go after one 15° step each way, for the targeted optic. */
+  private rotationGhosts(): { segs: BeamSegment[]; labels: Array<{ x: number; z: number; key: string }> } {
+    const r = this.run;
+    const none = { segs: [], labels: [] };
+    if (this.mode !== "play") return none;
+    const id = r.targetMount();
+    const op = id ? r.optics.find((o) => o.mountId === id) : undefined;
+    if (!op) return none;
+    const m = this.room.mounts.find((x) => x.id === id)!;
+    const segs: BeamSegment[] = [], labels: Array<{ x: number; z: number; key: string }> = [];
+    const sign = this.rotateSign();
+    for (const [key, dir] of [["rotR", 1], ["rotL", -1]] as const) {
+      const angle = (((op.angle + 15 * dir * sign) % 360) + 360) % 360;
+      const optics = r.optics.map((o) => (o === op ? { ...o, angle } : o));
+      const out = r.beams.trace({ ...r.world(), optics }).segments.filter((s) => s.live && s.fromOptic);
+      const first = out.find((s) => dist(s.a, v2(m.x, m.z)) < 0.4);
+      if (!first) continue;
+      for (const s of out) segs.push({ ...s, live: false, warn: 0.35, tint: "gold" });
+      const t = Math.min(1.6, dist(first.a, first.b)) / Math.max(1e-6, dist(first.a, first.b));
+      labels.push({ x: first.a.x + (first.b.x - first.a.x) * t, z: first.a.z + (first.b.z - first.a.z) * t, key });
+    }
+    return { segs, labels };
+  }
+
+  /**
+   * Rotate buttons are screen-space: the clockwise button always turns the optic clockwise as seen on
+   * screen. Sim angles grow from +x toward +z; check how that sweep projects at the current camera.
+   */
+  private rotateSign(): number {
+    const m = this.run.targetMount();
+    const mp = m ? this.room.mounts.find((x) => x.id === m)! : { x: 0, z: 0 };
+    const cam = this.stage.camera;
+    const o = new THREE.Vector3(mp.x, 0, mp.z).project(cam), px = new THREE.Vector3(mp.x + 1, 0, mp.z).project(cam), pz = new THREE.Vector3(mp.x, 0, mp.z + 1).project(cam);
+    // NDC y points up; a clockwise x→z sweep on screen has a negative cross product there.
+    const cross = (px.x - o.x) * (pz.y - o.y) - (px.y - o.y) * (pz.x - o.x);
+    return cross < 0 ? 1 : -1;
   }
 
   private stepSim(input: SimInput, dt: number) {
@@ -386,6 +436,7 @@ export class Game {
 
   /** Campaign assist: scrub back through the last three seconds. */
   private rewindStep() {
+    this.learn("rewind");
     if (!this.rewinding) {
       this.rewinding = true;
       this.rewinds++;
@@ -417,6 +468,7 @@ export class Game {
     switch (e.type) {
       case "step": this.audio.play("step", { pan }); break;
       case "contact": {
+        if (isTutorial(this.room.id) && !this.learned.has("rewind")) this.rewindCoach = 4;
         this.audio.play("contact", { pan });
         this.beams.flash.set(e.emitter, 0.45);
         this.stage.kick(1);
@@ -464,7 +516,15 @@ export class Game {
     const r = this.run, L = r.locke;
     const at = () => toScreen(L.pos.x, 1.75, L.pos.z);
     const g = (a: string) => `<kbd>${this.ui.glyph(a)}</kbd>`;
+    const tutorial = isTutorial(this.room.id);
+    if (this.rewindCoach > 0 && !this.learned.has("rewind")) return { ...at(), html: `Hold ${g("rewind")}Rewind` };
+    if (r.phase === "case" && !this.learned.has("orbit")) return { ...at(), html: `${g("orbit")}Look around` };
     if (r.phase === "case" && !this.learned.has("move")) return { ...at(), html: `${g("move")}Move` };
+    if (tutorial && !this.learned.has("orbit") && L.vel && Math.hypot(L.vel.x, L.vel.z) < 0.1) return { ...at(), html: `${g("orbit")}Look around` };
+    // Card Trick: a gap too thin to walk; teach flatten, then the sidle.
+    const thinGap = r.room.blocks.some((b) => b.style === "case" && dist(L.pos, v2(b.x, b.z)) < b.w / 2 + 0.9) && r.room.blocks.filter((b) => b.style === "case").length >= 6;
+    if (thinGap && L.pose !== "flatten" && !this.learned.has("flatten")) return { ...at(), html: `${g("flatten")}Flatten to slip through` };
+    if (L.pose === "flatten" && !this.learned.has("sidle")) return { ...at(), html: `${g("move")}Sidle` };
     if (!r.prizeLifted && !L.stretch.active && !r.canGrabPrize() && !this.learned.has("stretch")) {
       if (dist(L.pos, r.prizePos) < STRETCH_MAX + 0.6) return { ...at(), html: `Hold ${g("stretch")}Stretch toward it` };
     }
@@ -504,7 +564,8 @@ export class Game {
     const L = r.locke;
     const frame = r.frame;
     toonLights.flash.value = Math.max(0, toonLights.flash.value - dt * 4);
-    this.beams.update(frame.segments, dt, this.time);
+    const ghosts = this.rotationGhosts();
+    this.beams.update(ghosts.segs.length ? [...frame.segments, ...ghosts.segs] : frame.segments, dt, this.time);
     const sweepAngles: Record<string, number> = {};
     for (const e of this.room.emitters) if (e.type === "sweeper") sweepAngles[e.id] = sweepAngle(e, r.sweep[e.id] ?? 0);
     const target = r.targetMount();
@@ -545,7 +606,7 @@ export class Game {
       else if (target) {
         const m = this.room.mounts.find((mm) => mm.id === target)!;
         const p = toScreen(m.x, occupied ? 2.15 : 0.5, m.z);
-        if (occupied) prompt = { ...p, verb: this.learned.has("rotate") ? "Take" : `Take <kbd>${this.ui.glyph("rotate")}</kbd>Turn` };
+        if (occupied) prompt = { ...p, verb: this.learned.has("rotate") ? "Take" : `Take <kbd>${this.ui.glyph("rotL")}</kbd>⟲ <kbd>${this.ui.glyph("rotR")}</kbd>⟳` };
         else if (r.beltKind) prompt = { ...p, verb: "Place" };
       }
       this.ui.hudFrame({
@@ -553,6 +614,7 @@ export class Game {
         stretch: L.stretch.active ? 1 - L.stretch.length / STRETCH_MAX : null, prompt, reduced
       });
       document.documentElement.dataset.optic = occupied ? "1" : "0";
+      this.ui.ghostLabels(ghosts.labels.map((l) => ({ ...toScreen(l.x, 1.0, l.z), html: `<kbd>${this.ui.glyph(l.key)}</kbd>` })));
       this.ui.coach(prompt ? null : this.coachFor(toScreen), r.phase === "case" && !this.learned.has("move"));
     }
 

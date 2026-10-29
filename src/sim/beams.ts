@@ -1,11 +1,14 @@
 import { type V2, add, dirFromDeg, dot, raySegment, rayCircle, scale, sub, norm, v2 } from "./math2d";
-import type { Band, EmitterDef, OpticKind, RoomDef } from "./roomTypes";
+import type { Band, BlockDef, EmitterDef, OpticKind, RoomDef } from "./roomTypes";
 
 export const MAX_BOUNCES = 32;
 export const MIRROR_HALF = 0.3;
 export const SENSOR_R = 0.2;
 export const PRIZE_R = 0.28;
 export const UNFOLD_BEATS = 1.5;
+
+/** Columns, cabinets and pedestals are solid cover; rails only when the room marks them solid. */
+export const isSolid = (b: BlockDef) => b.solid ?? (b.style === "column" || b.style === "case" || b.style === "pedestal");
 
 export interface PlacedOptic { mountId: string; kind: OpticKind; angle: number }
 
@@ -24,6 +27,8 @@ export interface BeamSegment {
   bounce: number;
   /** Spoke index within a multi-spoke emitter (for prism hues). */
   spoke: number;
+  /** Segment starts at a placed optic (reflected/split/retro light). */
+  fromOptic?: boolean;
 }
 
 export interface BeamWorld {
@@ -99,7 +104,9 @@ export class BeamEngine {
     for (const b of room.blocks) {
       const x0 = b.x - b.w / 2, x1 = b.x + b.w / 2, z0 = b.z - b.d / 2, z1 = b.z + b.d / 2;
       const q = [v2(x0, z0), v2(x1, z0), v2(x1, z1), v2(x0, z1)];
-      for (let i = 0; i < 4; i++) this.blockWalls.push({ a: q[i]!, b: q[(i + 1) % 4]!, h: b.h });
+      // Solid props stop light at every height; others only where they're taller than the band.
+      const h = isSolid(b) ? Infinity : b.h;
+      for (let i = 0; i < 4; i++) this.blockWalls.push({ a: q[i]!, b: q[(i + 1) % 4]!, h });
     }
     for (const m of room.mounts) this.mounts.set(m.id, v2(m.x, m.z));
   }
@@ -146,8 +153,8 @@ export class BeamEngine {
   }
 
   private cast(e: EmitterDef, band: Band, o: V2, d: V2, w: BeamWorld, live: boolean, warn: number, spoke: number,
-    out: BeamSegment[], fed: Set<string>, depth = 0, travelled = 0): void {
-    let origin = o, dir = d, s = travelled;
+    out: BeamSegment[], fed: Set<string>, depth = 0, travelled = 0, optic = false): void {
+    let origin = o, dir = d, s = travelled, fromOptic = optic;
     let firstLeg = true;
     for (let bounce = depth; bounce < MAX_BOUNCES; bounce++) {
       const hit = this.nearest(origin, dir, band, w);
@@ -155,7 +162,7 @@ export class BeamEngine {
       let endKind = hit.kind;
       if (firstLeg && e.range !== undefined && e.range < t) { t = e.range; endKind = "wall"; }
       const end = add(origin, scale(dir, t));
-      out.push({ emitter: e.id, band, a: origin, b: end, s0: s, tint: e.tint ?? "red", type: e.type, live, warn, bounce, spoke });
+      out.push({ emitter: e.id, band, a: origin, b: end, s0: s, tint: e.tint ?? "red", type: e.type, live, warn, bounce, spoke, fromOptic });
       s += t;
       firstLeg = false;
       if (!live) return; // a telegraph doesn't feed sensors or bounce power around
@@ -164,19 +171,22 @@ export class BeamEngine {
         const n = hit.normal;
         dir = norm(sub(dir, scale(n, 2 * dot(dir, n))));
         origin = add(end, scale(dir, 1e-4));
+        fromOptic = true;
         continue;
       }
       if (endKind === "retro") {
         dir = scale(dir, -1);
         origin = add(end, scale(dir, 1e-4));
+        fromOptic = true;
         continue;
       }
       if (endKind === "splitter" && hit.normal) {
         // Half passes straight through, half reflects 90°.
         const n = hit.normal;
         const refl = norm(sub(dir, scale(n, 2 * dot(dir, n))));
-        this.cast(e, band, add(end, scale(refl, 1e-4)), refl, w, live, warn, spoke, out, fed, bounce + 1, s);
+        this.cast(e, band, add(end, scale(refl, 1e-4)), refl, w, live, warn, spoke, out, fed, bounce + 1, s, true);
         origin = add(end, scale(dir, 1e-3));
+        fromOptic = true;
         continue;
       }
       return;

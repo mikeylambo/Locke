@@ -11,7 +11,7 @@ export type Phase = "in" | "out" | "both";
 export type Wall = "n" | "s" | "e" | "w";
 export type OpticKind = "mirror" | "retro" | "splitter";
 
-export interface BlockDef { x: number; z: number; w: number; d: number; h: number; style?: "plinth" | "case" | "column" | "post" | "pedestal" | "sensor" | "rail" }
+export interface BlockDef { x: number; z: number; w: number; d: number; h: number; style?: "plinth" | "case" | "column" | "post" | "pedestal" | "sensor" | "rail"; solid?: boolean }
 export interface MountDef { id: string; x: number; z: number }
 export interface SensorDef { id: string; x: number; z: number }
 
@@ -47,7 +47,7 @@ export interface EmitterDef {
   housing?: "wall" | "post" | "none";
 }
 
-export interface ExitDef { id: string; x: number; z: number; wall: Wall; phase: "in" | "out"; closesOnAlert?: boolean }
+export interface ExitDef { id: string; x: number; z: number; wall: Wall; phase: "in" | "out" }
 
 export interface PrizeDef { kind: "diamond" | "crystal" | "ruby"; x: number; z: number; value: number; name: string }
 

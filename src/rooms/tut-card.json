@@ -1,0 +1,124 @@
+{
+  "id": "tut-card",
+  "name": "Card Trick",
+  "venue": "gilded-museum",
+  "headline": "CARD-THIN CAT BURGLAR SLIPS BETWEEN CABINETS",
+  "forgiving": true,
+  "size": {
+    "w": 8,
+    "d": 6,
+    "h": 3.0
+  },
+  "key": {
+    "root": "Bb",
+    "mode": "major"
+  },
+  "tempo": 104,
+  "parTime": 22,
+  "spawn": {
+    "x": 0,
+    "z": 2.0,
+    "facing": 110
+  },
+  "entry": {
+    "id": "entry",
+    "x": 0,
+    "z": 3,
+    "wall": "s",
+    "phase": "in"
+  },
+  "blocks": [
+    {
+      "x": 0,
+      "z": -2.1,
+      "w": 0.7,
+      "d": 0.7,
+      "h": 0.95,
+      "style": "pedestal"
+    },
+    {
+      "x": -0.684,
+      "z": -0.3,
+      "w": 0.9475,
+      "d": 0.6,
+      "h": 1.25,
+      "style": "case"
+    },
+    {
+      "x": 0.684,
+      "z": -0.3,
+      "w": 0.9475,
+      "d": 0.6,
+      "h": 1.25,
+      "style": "case"
+    },
+    {
+      "x": -1.632,
+      "z": -0.3,
+      "w": 0.9475,
+      "d": 0.6,
+      "h": 1.25,
+      "style": "case"
+    },
+    {
+      "x": 1.632,
+      "z": -0.3,
+      "w": 0.9475,
+      "d": 0.6,
+      "h": 1.25,
+      "style": "case"
+    },
+    {
+      "x": -2.579,
+      "z": -0.3,
+      "w": 0.9475,
+      "d": 0.6,
+      "h": 1.25,
+      "style": "case"
+    },
+    {
+      "x": 2.579,
+      "z": -0.3,
+      "w": 0.9475,
+      "d": 0.6,
+      "h": 1.25,
+      "style": "case"
+    },
+    {
+      "x": -3.526,
+      "z": -0.3,
+      "w": 0.9475,
+      "d": 0.6,
+      "h": 1.25,
+      "style": "case"
+    },
+    {
+      "x": 3.526,
+      "z": -0.3,
+      "w": 0.9475,
+      "d": 0.6,
+      "h": 1.25,
+      "style": "case"
+    }
+  ],
+  "mounts": [],
+  "sensors": [],
+  "emitters": [],
+  "exits": [
+    {
+      "id": "east",
+      "x": 4,
+      "z": 1.8,
+      "wall": "e",
+      "phase": "out"
+    }
+  ],
+  "prize": {
+    "kind": "diamond",
+    "x": 0,
+    "z": -2.1,
+    "value": 64000,
+    "name": "The Jack of Diamonds"
+  },
+  "belt": []
+}
