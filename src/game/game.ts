@@ -9,12 +9,13 @@ import { RoomView } from "../render/room";
 import { Stage, detectTier, type Quality } from "../render/stage";
 import { DebugOverlay } from "../ui/debug";
 import { toonLights } from "../render/toon";
-import { emitterActive, sweepAngle, type BeamSegment } from "../sim/beams";
+import { emitterActive, sweepAngle } from "../sim/beams";
 import { dist, pointSegDist, v2 } from "../sim/math2d";
 import { DT, HeistRun, emptyInput, STRETCH_MAX, type RunSnapshot, type SimEvent, type SimInput } from "../sim/run";
 import type { RoomDef } from "../sim/roomTypes";
 import { UI, type MenuItem } from "../ui/ui";
 import { CAMPAIGN, isTutorial, loadRoom } from "./rooms";
+import { lineFor } from "./lines";
 
 interface Settings {
   masterVolume: number; musicVolume: number; sfxVolume: number;
@@ -315,7 +316,7 @@ export class Game {
     } else if (this.mode === "play" || this.mode === "results" || this.mode === "caught") {
       if (this.mode === "play") {
         if (f.pause) { this.pause(); }
-        else if (f.restart) { this.restart(); }
+        else if (f.restart) { this.learn("restart"); this.restart(); }
       }
       if (this.mode === "play" || this.mode === "results" || this.mode === "caught") {
         this.cameraInput(f);
@@ -346,6 +347,9 @@ export class Game {
     this.roomView.updateCutaway(new THREE.Vector3().subVectors(this.stage.camera.position, this.stage.target).setY(0).normalize(), dt);
     this.prize.face(this.stage.camera);
     this.stage.setFocusWorld(new THREE.Vector3(this.run.locke.pos.x, 0.7, this.run.locke.pos.z));
+    // Menu frames' cat's-eye band follows the camera like the in-world gold does.
+    const sheen = ((((this.stage.yaw / (Math.PI * 2)) * 180 + this.stage.pitch * 60) % 160) + 160) % 160 - 30;
+    if (Math.abs(sheen - this.lastSheen) > 0.5) { this.lastSheen = sheen; document.documentElement.style.setProperty("--sheen", `${sheen.toFixed(1)}%`); }
     this.beams.uniforms.uPix.value = this.stage.pixelAngle();
     this.beams.uniforms.uCam.value.copy(this.stage.camera.position);
     this.stage.render();
@@ -356,6 +360,8 @@ export class Game {
   private orbitTravel = 0;
   private flatTravel = 0;
   private rewindCoach = 0;
+  private lastSpoken: string | null = null;
+  private lastSheen = -999;
 
   private cameraInput(f: InputFrame) {
     if (f.orbit.dx || f.orbit.dy) this.stage.orbit(-f.orbit.dx, f.orbit.dy);
@@ -372,30 +378,6 @@ export class Game {
     const mv = v2(b.right.x * f.move.x + b.fwd.x * f.move.y, b.right.z * f.move.x + b.fwd.z * f.move.y);
     if (this.run.locke.pose === "flatten" && Math.hypot(mv.x, mv.z) > 0.3) { this.flatTravel += 1 / 60; if (this.flatTravel > 0.6) this.learn("sidle"); }
     return { move: mv, stretch: f.stretch, crouch: f.crouch, flatten: f.flatten, interact: f.interact, rotate: f.rotate * this.rotateSign(), cycle: f.cycle };
-  }
-
-  /** Where the redirected light would go after one 15° step each way, for the targeted optic. */
-  private rotationGhosts(): { segs: BeamSegment[]; labels: Array<{ x: number; z: number; key: string }> } {
-    const r = this.run;
-    const none = { segs: [], labels: [] };
-    if (this.mode !== "play") return none;
-    const id = r.targetMount();
-    const op = id ? r.optics.find((o) => o.mountId === id) : undefined;
-    if (!op) return none;
-    const m = this.room.mounts.find((x) => x.id === id)!;
-    const segs: BeamSegment[] = [], labels: Array<{ x: number; z: number; key: string }> = [];
-    const sign = this.rotateSign();
-    for (const [key, dir] of [["rotR", 1], ["rotL", -1]] as const) {
-      const angle = (((op.angle + 15 * dir * sign) % 360) + 360) % 360;
-      const optics = r.optics.map((o) => (o === op ? { ...o, angle } : o));
-      const out = r.beams.trace({ ...r.world(), optics }).segments.filter((s) => s.live && s.fromOptic);
-      const first = out.find((s) => dist(s.a, v2(m.x, m.z)) < 0.4);
-      if (!first) continue;
-      for (const s of out) segs.push({ ...s, live: false, warn: 0.35, tint: "gold" });
-      const t = Math.min(1.6, dist(first.a, first.b)) / Math.max(1e-6, dist(first.a, first.b));
-      labels.push({ x: first.a.x + (first.b.x - first.a.x) * t, z: first.a.z + (first.b.z - first.a.z) * t, key });
-    }
-    return { segs, labels };
   }
 
   /**
@@ -468,7 +450,8 @@ export class Game {
     switch (e.type) {
       case "step": this.audio.play("step", { pan }); break;
       case "contact": {
-        if (isTutorial(this.room.id) && !this.learned.has("rewind")) this.rewindCoach = 4;
+        if (!this.learned.has("restart") || (isTutorial(this.room.id) && !this.learned.has("rewind"))) this.rewindCoach = 4;
+        this.locke.react("surprised", 1.2);
         this.audio.play("contact", { pan });
         this.beams.flash.set(e.emitter, 0.45);
         this.stage.kick(1);
@@ -480,6 +463,7 @@ export class Game {
         break;
       }
       case "lift":
+        this.locke.react("grin", 2.2);
         this.audio.play("lift");
         this.prize.burst();
         this.ui.flash("lift");
@@ -511,32 +495,28 @@ export class Game {
     }
   }
 
-  /** One contextual prompt at a time, only when the room makes it relevant, gone once learned. */
-  private coachFor(toScreen: (x: number, y: number, z: number) => { x: number; y: number }): { x: number; y: number; html: string } | null {
+  /** Which line Locke should be saying right now (one at a time; each retires once its move is used). */
+  private speechTrigger(): string | null {
     const r = this.run, L = r.locke;
-    const at = () => toScreen(L.pos.x, 1.75, L.pos.z);
-    const g = (a: string) => `<kbd>${this.ui.glyph(a)}</kbd>`;
     const tutorial = isTutorial(this.room.id);
-    if (this.rewindCoach > 0 && !this.learned.has("rewind")) return { ...at(), html: `Hold ${g("rewind")}Rewind` };
-    if (r.phase === "case" && !this.learned.has("orbit")) return { ...at(), html: `${g("orbit")}Look around` };
-    if (r.phase === "case" && !this.learned.has("move")) return { ...at(), html: `${g("move")}Move` };
-    if (tutorial && !this.learned.has("orbit") && L.vel && Math.hypot(L.vel.x, L.vel.z) < 0.1) return { ...at(), html: `${g("orbit")}Look around` };
+    if (this.rewindCoach > 0) return !this.learned.has("restart") ? "fumble" : !this.learned.has("rewind") && tutorial ? "rewind" : null;
+    if (r.phase === "case" && !this.learned.has("orbit")) return "orbit";
+    if (r.phase === "case" && !this.learned.has("move")) return "move";
+    if (tutorial && !this.learned.has("orbit") && Math.hypot(L.vel.x, L.vel.z) < 0.1) return "orbit";
     // Card Trick: a gap too thin to walk; teach flatten, then the sidle.
-    const thinGap = r.room.blocks.some((b) => b.style === "case" && dist(L.pos, v2(b.x, b.z)) < b.w / 2 + 0.9) && r.room.blocks.filter((b) => b.style === "case").length >= 6;
-    if (thinGap && L.pose !== "flatten" && !this.learned.has("flatten")) return { ...at(), html: `${g("flatten")}Flatten to slip through` };
-    if (L.pose === "flatten" && !this.learned.has("sidle")) return { ...at(), html: `${g("move")}Sidle` };
-    if (!r.prizeLifted && !L.stretch.active && !r.canGrabPrize() && !this.learned.has("stretch")) {
-      if (dist(L.pos, r.prizePos) < STRETCH_MAX + 0.6) return { ...at(), html: `Hold ${g("stretch")}Stretch toward it` };
-    }
+    const thinGap = r.room.blocks.filter((b) => b.style === "case").length >= 6 && r.room.blocks.some((b) => b.style === "case" && dist(L.pos, v2(b.x, b.z)) < b.w / 2 + 0.9);
+    if (thinGap && L.pose !== "flatten" && !this.learned.has("flatten")) return "flatten";
+    if (L.pose === "flatten" && !this.learned.has("sidle")) return "sidle";
+    if (r.canGrabPrize() && !this.learned.has("lift")) return "lift";
+    if (!r.prizeLifted && !L.stretch.active && !r.canGrabPrize() && !this.learned.has("stretch") && dist(L.pos, r.prizePos) < STRETCH_MAX + 0.6) return "stretch";
     if (L.pose === "stand" && !this.learned.has("crouch")) {
-      const lowBeamNear = r.frame.segments.some((s) => s.live && s.band === "high" && pointSegDist(L.pos, s.a, s.b) < 1.0);
-      const blocked = r.frame.segments.some((s) => s.live && s.band !== "high" && pointSegDist(L.pos, s.a, s.b) < 1.0);
-      if (lowBeamNear && !blocked) return { ...at(), html: `${g("crouch")}Crouch under` };
+      const high = r.frame.segments.some((sg) => sg.live && sg.band === "high" && pointSegDist(L.pos, sg.a, sg.b) < 1.0);
+      const other = r.frame.segments.some((sg) => sg.live && sg.band !== "high" && pointSegDist(L.pos, sg.a, sg.b) < 1.0);
+      if (high && !other) return "crouch";
     }
-    if (r.belt.length && !this.learned.has("place") && r.room.mounts.length && !r.targetMount()) {
-      const m = r.room.mounts[0]!;
-      return { ...toScreen(m.x, 0.6, m.z), html: "◇" };
-    }
+    const target = r.targetMount();
+    if (target && !this.learned.has("place") && r.beltKind && !r.optics.some((o) => o.mountId === target)) return "place";
+    if (target && !this.learned.has("rotate") && r.optics.some((o) => o.mountId === target)) return "rotate";
     return null;
   }
 
@@ -564,8 +544,7 @@ export class Game {
     const L = r.locke;
     const frame = r.frame;
     toonLights.flash.value = Math.max(0, toonLights.flash.value - dt * 4);
-    const ghosts = this.rotationGhosts();
-    this.beams.update(ghosts.segs.length ? [...frame.segments, ...ghosts.segs] : frame.segments, dt, this.time);
+    this.beams.update(frame.segments, dt, this.time);
     const sweepAngles: Record<string, number> = {};
     for (const e of this.room.emitters) if (e.type === "sweeper") sweepAngles[e.id] = sweepAngle(e, r.sweep[e.id] ?? 0);
     const target = r.targetMount();
@@ -597,25 +576,22 @@ export class Game {
 
     // HUD.
     if (playing) {
-      let prompt: { x: number; y: number; verb: string } | null = null;
       const toScreen = (x: number, y: number, z: number) => {
         const v = new THREE.Vector3(x, y, z).project(this.stage.camera);
         return { x: (v.x * 0.5 + 0.5) * innerWidth, y: (-v.y * 0.5 + 0.5) * innerHeight };
       };
-      if (r.canGrabPrize()) { const p = toScreen(r.prizePos.x, 1.55, r.prizePos.z); prompt = { ...p, verb: "Lift" }; }
-      else if (target) {
-        const m = this.room.mounts.find((mm) => mm.id === target)!;
-        const p = toScreen(m.x, occupied ? 2.15 : 0.5, m.z);
-        if (occupied) prompt = { ...p, verb: this.learned.has("rotate") ? "Take" : `Take <kbd>${this.ui.glyph("rotL")}</kbd>⟲ <kbd>${this.ui.glyph("rotR")}</kbd>⟳` };
-        else if (r.beltKind) prompt = { ...p, verb: "Place" };
-      }
+      const prompt = null;
       this.ui.hudFrame({
         time: r.stats.time, casing: r.phase === "case", threat: r.threat, beat: r.beat, belt: r.belt, selected: r.selected,
         stretch: L.stretch.active ? 1 - L.stretch.length / STRETCH_MAX : null, prompt, reduced
       });
       document.documentElement.dataset.optic = occupied ? "1" : "0";
-      this.ui.ghostLabels(ghosts.labels.map((l) => ({ ...toScreen(l.x, 1.0, l.z), html: `<kbd>${this.ui.glyph(l.key)}</kbd>` })));
-      this.ui.coach(prompt ? null : this.coachFor(toScreen), r.phase === "case" && !this.learned.has("move"));
+      const trig = this.speechTrigger();
+      const line = trig ? lineFor(this.room.id, trig) : null;
+      if (line && trig !== this.lastSpoken) { this.lastSpoken = trig; this.audio.speak(line); }
+      if (!line) this.lastSpoken = null;
+      const head = toScreen(L.pos.x, 2.05, L.pos.z);
+      this.ui.speech(line ? { x: head.x, y: head.y, text: line.text, glyph: line.glyph ? this.ui.glyph(line.glyph) : undefined } : null);
     }
 
     // Audio frame.

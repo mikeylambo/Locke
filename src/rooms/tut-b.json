@@ -1,25 +1,86 @@
 {
   "id": "tut-b",
-  "name": "The Long Reach",
+  "name": "Moreau Fine Jewelers",
   "venue": "gilded-museum",
-  "headline": "GLOVED HAND REACHES ACROSS VELVET ROPE",
+  "headline": "PEARL PLUCKED FROM BEHIND JEWELER'S VELVET ROPE",
   "forgiving": true,
-  "size": { "w": 8, "d": 6, "h": 3.0 },
-  "key": { "root": "F", "mode": "major" },
+  "size": {
+    "w": 8,
+    "d": 6,
+    "h": 3.0
+  },
+  "key": {
+    "root": "F",
+    "mode": "major"
+  },
   "tempo": 104,
   "parTime": 20,
-  "spawn": { "x": 0, "z": 2.1, "facing": 110 },
-  "entry": { "id": "entry", "x": 0, "z": 3, "wall": "s", "phase": "in" },
+  "spawn": {
+    "x": 0,
+    "z": 2.1,
+    "facing": 110
+  },
+  "entry": {
+    "id": "entry",
+    "x": 0,
+    "z": 3,
+    "wall": "s",
+    "phase": "in"
+  },
   "blocks": [
-    { "x": 0, "z": -2.2, "w": 0.7, "d": 0.7, "h": 0.95, "style": "pedestal" },
-    { "x": -1.25, "z": -1.95, "w": 0.12, "d": 2.1, "h": 0.55, "style": "rail" },
-    { "x": 1.25, "z": -1.95, "w": 0.12, "d": 2.1, "h": 0.55, "style": "rail" },
-    { "x": 0, "z": -0.85, "w": 2.62, "d": 0.12, "h": 0.55, "style": "rail" }
+    {
+      "x": 0,
+      "z": -2.2,
+      "w": 0.7,
+      "d": 0.7,
+      "h": 0.95,
+      "style": "pedestal"
+    },
+    {
+      "x": -1.25,
+      "z": -1.95,
+      "w": 0.12,
+      "d": 2.1,
+      "h": 0.55,
+      "style": "rail"
+    },
+    {
+      "x": 1.25,
+      "z": -1.95,
+      "w": 0.12,
+      "d": 2.1,
+      "h": 0.55,
+      "style": "rail"
+    },
+    {
+      "x": 0,
+      "z": -0.85,
+      "w": 2.62,
+      "d": 0.12,
+      "h": 0.55,
+      "style": "rail"
+    }
   ],
   "mounts": [],
   "sensors": [],
   "emitters": [],
-  "exits": [ { "id": "west", "x": -4, "z": 1.8, "wall": "w", "phase": "out" } ],
-  "prize": { "kind": "diamond", "x": 0, "z": -2.2, "value": 42000, "name": "The Velvet Pear" },
-  "belt": []
+  "exits": [
+    {
+      "id": "west",
+      "x": -4,
+      "z": 1.8,
+      "wall": "w",
+      "phase": "out"
+    }
+  ],
+  "prize": {
+    "kind": "diamond",
+    "x": 0,
+    "z": -2.2,
+    "value": 42000,
+    "name": "The Velvet Pearl"
+  },
+  "belt": [],
+  "theme": "jeweler",
+  "sign": "MOREAU \u00b7 FINE JEWELERS"
 }

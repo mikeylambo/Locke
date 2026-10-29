@@ -1,27 +1,127 @@
 {
   "id": "tut-c",
-  "name": "Mirror, Mirror",
+  "name": "The Ashcombe Collection",
   "venue": "gilded-museum",
-  "headline": "MYSTERY MIRROR BLINDS GALLERY ALARM",
+  "headline": "MYSTERY MIRROR BLINDS PRIVATE GALLERY ALARM",
   "forgiving": true,
-  "size": { "w": 9, "d": 7, "h": 3.0 },
-  "key": { "root": "G", "mode": "mixolydian" },
+  "size": {
+    "w": 9,
+    "d": 7,
+    "h": 3.0
+  },
+  "key": {
+    "root": "G",
+    "mode": "mixolydian"
+  },
   "tempo": 108,
   "parTime": 32,
-  "spawn": { "x": -2.0, "z": 2.6, "facing": 110 },
-  "entry": { "id": "entry", "x": -2.0, "z": 3.5, "wall": "s", "phase": "in" },
+  "spawn": {
+    "x": -2.0,
+    "z": 2.6,
+    "facing": 110
+  },
+  "entry": {
+    "id": "entry",
+    "x": -2.0,
+    "z": 3.5,
+    "wall": "s",
+    "phase": "in"
+  },
   "blocks": [
-    { "x": 1.5, "z": -2.4, "w": 0.7, "d": 0.7, "h": 0.95, "style": "pedestal" },
-    { "x": -3, "z": 0, "w": 0.3, "d": 0.3, "h": 1.2, "style": "sensor" }
+    {
+      "x": 1.5,
+      "z": -2.4,
+      "w": 0.7,
+      "d": 0.7,
+      "h": 0.95,
+      "style": "pedestal"
+    },
+    {
+      "x": -3,
+      "z": 0,
+      "w": 0.3,
+      "d": 0.3,
+      "h": 1.2,
+      "style": "sensor"
+    }
   ],
-  "mounts": [ { "id": "m1", "x": -3, "z": 1.4 } ],
-  "sensors": [ { "id": "s1", "x": -3, "z": 0 } ],
+  "mounts": [
+    {
+      "id": "m1",
+      "x": -3,
+      "z": 1.4
+    }
+  ],
+  "sensors": [
+    {
+      "id": "s1",
+      "x": -3,
+      "z": 0
+    }
+  ],
   "emitters": [
-    { "id": "feed", "type": "static", "x": 4.5, "z": 1.4, "angle": 180, "bands": ["high"], "note": 1, "housing": "wall" },
-    { "id": "grid-a", "type": "static", "x": -4.5, "z": -0.6, "angle": 0, "bands": ["low", "mid", "high"], "poweredBy": "s1", "note": 5, "housing": "wall" },
-    { "id": "grid-b", "type": "static", "x": -4.5, "z": -0.82, "angle": 0, "bands": ["low", "mid", "high"], "poweredBy": "s1", "note": 3, "housing": "wall" }
+    {
+      "id": "feed",
+      "type": "static",
+      "x": 4.5,
+      "z": 1.4,
+      "angle": 180,
+      "bands": [
+        "high"
+      ],
+      "note": 1,
+      "housing": "wall"
+    },
+    {
+      "id": "grid-a",
+      "type": "static",
+      "x": -4.5,
+      "z": -0.6,
+      "angle": 0,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "poweredBy": "s1",
+      "note": 5,
+      "housing": "wall"
+    },
+    {
+      "id": "grid-b",
+      "type": "static",
+      "x": -4.5,
+      "z": -0.82,
+      "angle": 0,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "poweredBy": "s1",
+      "note": 3,
+      "housing": "wall"
+    }
   ],
-  "exits": [ { "id": "east", "x": 4.5, "z": 2.4, "wall": "e", "phase": "out" } ],
-  "prize": { "kind": "diamond", "x": 1.5, "z": -2.4, "value": 96000, "name": "The Looking-Glass Opal" },
-  "belt": ["mirror"]
+  "exits": [
+    {
+      "id": "east",
+      "x": 4.5,
+      "z": 2.4,
+      "wall": "e",
+      "phase": "out"
+    }
+  ],
+  "prize": {
+    "kind": "diamond",
+    "x": 1.5,
+    "z": -2.4,
+    "value": 96000,
+    "name": "The Looking-Glass Opal"
+  },
+  "belt": [
+    "mirror"
+  ],
+  "theme": "gallery",
+  "sign": "THE ASHCOMBE COLLECTION"
 }

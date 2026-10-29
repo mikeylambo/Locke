@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { CHATOYANT_GLSL, chatoyStrength } from "./chatoyant";
 
 /** Shared lighting rig for every toon surface (Locke, gadgets). Updated once per frame. */
 export const toonLights = {
@@ -19,6 +20,8 @@ export interface ToonOptions {
   gloss?: number;
   rim?: number;
   emissive?: THREE.ColorRepresentation;
+  /** Cat's-eye sheen strength (gold accents only). */
+  chatoy?: number;
 }
 
 const vert = /* glsl */ `
@@ -34,7 +37,8 @@ void main(){
 const frag = /* glsl */ `
 uniform vec3 uColor; uniform vec3 uShade; uniform vec3 uStripe; uniform vec3 uEmissive;
 uniform float uStripes; uniform float uStripeMode; uniform float uGloss; uniform float uRim;
-uniform vec3 uKey; uniform vec3 uRimDir; uniform vec3 uRimColor; uniform vec3 uAmbient; uniform float uFlash;
+uniform vec3 uKey; uniform vec3 uRimDir; uniform vec3 uRimColor; uniform vec3 uAmbient; uniform float uFlash; uniform float uChatoyAmt; uniform float uChatoy;
+${CHATOYANT_GLSL}
 varying vec3 vN; varying vec3 vW; varying vec2 vUv; varying vec3 vLocal;
 void main(){
   vec3 n = normalize(vN);
@@ -60,6 +64,7 @@ void main(){
   float rimMask = smoothstep(0.62, 0.7, fr) * smoothstep(-0.1, 0.5, dot(n, uRimDir) + 0.15);
   col += uRimColor * rimMask * uRim;
   col += uEmissive;
+  if (uChatoyAmt > 0.0) col += vec3(1.0, 0.9, 0.68) * uChatoyAmt * uChatoy * chatoyBand(n, v, normalize(vec3(0.25, 1.0, 0.15)), 40.0);
   col = mix(col, vec3(1.0, 0.95, 0.85), uFlash * 0.6);
   gl_FragColor = vec4(col, 1.0);
 }`;
@@ -80,7 +85,9 @@ export function toonMaterial(o: ToonOptions): THREE.ShaderMaterial {
       uRimDir: toonLights.rimDir,
       uRimColor: toonLights.rimColor,
       uAmbient: toonLights.ambient,
-      uFlash: toonLights.flash
+      uFlash: toonLights.flash,
+      uChatoyAmt: { value: o.chatoy ?? 0 },
+      uChatoy: chatoyStrength
     },
     vertexShader: vert,
     fragmentShader: frag

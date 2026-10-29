@@ -1,0 +1,33 @@
+{
+  "_doc": "Locke's lines, keyed by room id then trigger. 'default' covers every room. Fields: text (shown beside Locke), glyph (input action whose button is shown small beside it; omit for none), clip (optional URL of a recorded line, e.g. /audio/vo/tut-a-move.ogg), hum (placeholder vocal when no clip: hum | grunt | chuckle | tsk). Triggers: orbit, move, stretch, flatten, sidle, place, rotate, crouch, lift, contact, fumble, rewind, escape.",
+  "default": {
+    "orbit": { "text": "Case the joint first. Clock's not running.", "glyph": "orbit", "hum": "hum" },
+    "move": { "text": "All right. Easy does it.", "glyph": "move", "hum": "hum" },
+    "stretch": { "text": "Why walk when you can reach?", "glyph": "stretch", "hum": "grunt" },
+    "flatten": { "text": "Sideways. Like a card up a sleeve.", "glyph": "flatten", "hum": "hum" },
+    "sidle": { "text": "Slow and sideways.", "glyph": "move", "hum": "hum" },
+    "place": { "text": "Mirror, mirror… show me the off switch.", "glyph": "interact", "hum": "chuckle" },
+    "rotate": { "text": "A touch this way… or that.", "glyph": "rotate", "hum": "hum" },
+    "crouch": { "text": "Mind the hat.", "glyph": "crouch", "hum": "grunt" },
+    "lift": { "text": "Don't mind if I do.", "hum": "chuckle" },
+    "contact": { "text": "Hot. Noted.", "hum": "tsk" },
+    "fumble": { "text": "Let's take that again, from the top.", "glyph": "restart", "hum": "tsk" },
+    "rewind": { "text": "Back up a beat.", "glyph": "rewind", "hum": "hum" },
+    "escape": { "text": "Gentlemen.", "hum": "chuckle" }
+  },
+  "tut-a": {
+    "move": { "text": "Little light show. Cute.", "glyph": "move", "hum": "chuckle" }
+  },
+  "tut-b": {
+    "stretch": { "text": "Too narrow for the suit. Not for the arm.", "glyph": "stretch", "hum": "hum" }
+  },
+  "tut-card": {
+    "flatten": { "text": "Sideways. Like a card up a sleeve.", "glyph": "flatten", "hum": "hum" }
+  },
+  "tut-c": {
+    "place": { "text": "Mirror, mirror… show me the off switch.", "glyph": "interact", "hum": "chuckle" }
+  },
+  "room-zero": {
+    "move": { "text": "Now this is a museum.", "glyph": "move", "hum": "hum" }
+  }
+}

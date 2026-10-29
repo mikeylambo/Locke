@@ -5,6 +5,7 @@ import type { BlockDef, EmitterDef, ExitDef, RoomDef } from "../sim/roomTypes";
 import { BAND_Y } from "../sim/roomTypes";
 import { P, glowMaterial, goldMaterial, matteMaterial } from "./palette";
 import type { Quality } from "./stage";
+import { chatoyant } from "./chatoyant";
 
 const floorVert = /* glsl */ `
 uniform mat4 textureMatrix;
@@ -17,7 +18,7 @@ void main(){
 }`;
 
 const floorFrag = /* glsl */ `
-uniform vec3 color; uniform sampler2D tDiffuse; uniform float uReflect; uniform float uSheen; uniform vec2 uHalf; uniform vec2 uFocus; uniform float uTime;
+uniform vec3 color; uniform sampler2D tDiffuse; uniform float uReflect; uniform float uSheen; uniform float uPattern; uniform float uInlay; uniform vec2 uHalf; uniform vec2 uFocus; uniform float uTime;
 varying vec4 vUvR; varying vec3 vW;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
@@ -29,6 +30,23 @@ void main(){
   float v = noise(p * 1.3) * 0.6 + noise(p * 3.7) * 0.3 + noise(p * 9.0) * 0.1;
   float vein = pow(1.0 - abs(sin((p.x * 0.7 + p.y * 0.4 + v * 2.0) * 1.6)), 40.0);
   vec3 base = color * (0.9 + v * 0.2) + vec3(0.018, 0.015, 0.013) * vein;
+  if (uPattern > 0.5 && uPattern < 1.5) {
+    // Pawnshop: worn oak planks.
+    float plank = floor(p.y / 0.22);
+    float grain = noise(vec2(p.x * 0.8 + plank * 7.0, plank)) * 0.5 + noise(vec2(p.x * 9.0, p.y * 40.0)) * 0.2;
+    base = vec3(0.07, 0.04, 0.022) * (0.75 + grain + hash(vec2(plank, 3.0)) * 0.3);
+    base *= 1.0 - line(fract(p.y / 0.22) - 0.5, 0.06) * 0.0 - (1.0 - smoothstep(0.0, 0.03, fract(p.y / 0.22))) * 0.6;
+  } else if (uPattern > 1.5 && uPattern < 2.5) {
+    // Jeweler: black-and-cream checker.
+    vec2 c = floor(p / 0.6);
+    float k = mod(c.x + c.y, 2.0);
+    base = mix(vec3(0.012, 0.011, 0.014), vec3(0.16, 0.145, 0.12), k) * (0.9 + v * 0.2);
+  } else if (uPattern > 2.5) {
+    // Hotel: oxblood carpet with a small deco diamond.
+    vec2 c = fract(p / 0.7) - 0.5;
+    float dia = line(abs(c.x) + abs(c.y) - 0.3, 0.02);
+    base = vec3(0.055, 0.008, 0.012) * (0.85 + noise(p * 30.0) * 0.3) + vec3(0.06, 0.04, 0.015) * dia;
+  }
   // Gold inlay: inset border, large tiles, and a sunburst around the prize.
   vec2 q = abs(p) - (uHalf - 0.45);
   float border = line(max(q.x, q.y), 0.025) + line(max(q.x, q.y) + 0.12, 0.012);
@@ -39,7 +57,7 @@ void main(){
   float ang = atan(r.y, r.x);
   float rays = line(sin(ang * 12.0) * rr, 0.018) * smoothstep(0.7, 0.9, rr) * (1.0 - smoothstep(2.2, 2.6, rr));
   float rings = line(rr - 0.75, 0.03) + line(rr - 0.9, 0.012) + line(rr - 2.6, 0.02);
-  float gold = clamp(border + grout + rays * 0.8 + rings, 0.0, 1.0);
+  float gold = clamp(border + (grout + rays * 0.8 + rings) * uInlay, 0.0, 1.0);
   vec3 goldCol = vec3(0.85, 0.62, 0.28) * (0.16 + 0.05 * sin(uTime * 0.6 + p.x * 0.8));
   base = mix(base, goldCol, gold * 0.85);
   // Polished reflection with a soft 5-tap blur.
@@ -90,6 +108,16 @@ export function mergeStatic(root: THREE.Object3D, keep: Set<THREE.Object3D>) {
   }
 }
 
+/** Each small-time job dresses the same sim differently. */
+export const THEMES = {
+  museum: { wall: "#0f0d13", floor: "#07060a", pattern: 0, inlay: 1 },
+  pawnshop: { wall: "#1b120c", floor: "#07060a", pattern: 1, inlay: 0.25 },
+  jeweler: { wall: "#0e111a", floor: "#07060a", pattern: 2, inlay: 0.5 },
+  hotel: { wall: "#0b1410", floor: "#07060a", pattern: 3, inlay: 0.35 },
+  gallery: { wall: "#16110f", floor: "#0b0908", pattern: 0, inlay: 0.75 }
+} as const;
+export type Theme = keyof typeof THEMES;
+
 export interface DoorView {
   def: ExitDef;
   shutter: THREE.Mesh;
@@ -119,10 +147,14 @@ export class RoomView {
   private motes: THREE.Points;
   private time = 0;
 
+  readonly theme: Theme;
+
   constructor(readonly room: RoomDef, quality: Quality) {
+    this.theme = (room.theme ?? "museum") as Theme;
     const { w, d, h } = room.size;
     this.buildFloor(w, d, quality);
     this.buildWalls(w, d, h);
+    if (room.sign) this.buildSign(room.sign, w, d, h);
     const blocks = new THREE.Group();
     for (const b of room.blocks) blocks.add(this.buildBlock(b));
     mergeStatic(blocks, new Set());
@@ -152,9 +184,10 @@ export class RoomView {
   private buildFloor(w: number, d: number, quality: Quality) {
     const geo = new THREE.PlaneGeometry(w, d);
     const uniforms = {
-      color: { value: P.floor.clone() }, tDiffuse: { value: null }, textureMatrix: { value: null },
+      color: { value: new THREE.Color(THEMES[this.theme].floor) }, tDiffuse: { value: null }, textureMatrix: { value: null },
       uReflect: { value: quality === "cinematic" ? 0.42 : 0 }, uSheen: { value: quality === "cinematic" ? 0 : 1 }, uHalf: { value: new THREE.Vector2(w / 2, d / 2) },
-      uFocus: { value: new THREE.Vector2(this.room.prize.x, this.room.prize.z) }, uTime: { value: 0 }
+      uFocus: { value: new THREE.Vector2(this.room.prize.x, this.room.prize.z) }, uTime: { value: 0 },
+      uPattern: { value: THEMES[this.theme].pattern }, uInlay: { value: THEMES[this.theme].inlay }
     };
     if (quality === "cinematic") {
       const r = new Reflector(geo, {
@@ -178,7 +211,7 @@ export class RoomView {
   }
 
   private buildWalls(w: number, d: number, h: number) {
-    const wallMat = matteMaterial(P.wall);
+    const wallMat = matteMaterial(new THREE.Color(THEMES[this.theme].wall));
     const gold = goldMaterial(0.3, 0.12);
     const trimGold = goldMaterial(0.25, 0.25);
     const sides: Array<{ wall: "n" | "s" | "e" | "w"; len: number; pos: THREE.Vector3; rotY: number; normal: THREE.Vector3 }> = [
@@ -267,7 +300,30 @@ export class RoomView {
     }
   }
 
-  private buildDoor(g: THREE.Group, def: ExitDef, u: number, dw: number, dh: number, trim: THREE.Material, gold: THREE.Material) {
+  /** Gilt lettering over the back wall: tells you which joint this is without a word of UI. */
+  private buildSign(text: string, w: number, d: number, h: number) {
+    const c = document.createElement("canvas");
+    c.width = 1024; c.height = 160;
+    const ctx = c.getContext("2d")!;
+    ctx.font = "64px Limelight, 'Playfair Display', Georgia, serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(255, 200, 110, 0.9)"; ctx.shadowBlur = 18;
+    const grd = ctx.createLinearGradient(0, 40, 0, 120);
+    grd.addColorStop(0, "#fff1c8"); grd.addColorStop(0.5, "#e2b35c"); grd.addColorStop(1, "#8e6424");
+    ctx.fillStyle = grd;
+    ctx.fillText(text, 512, 84, 980);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const width = Math.min(w * 0.6, 6.4);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(width, width * (160 / 1024)), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, color: new THREE.Color(1.5, 1.4, 1.2), depthWrite: false }));
+    sign.position.set(0, h - 0.62, -d / 2 + 0.02);
+    this.group.add(sign);
+  }
+
+  private buildDoor(g: THREE.Group, def: ExitDef, u: number, dw: number, dh: number, _trim: THREE.Material, _gold: THREE.Material) {
+    // Vault doors carry the cat's-eye sheen on their gold.
+    const trim = this.mat("doorTrim", () => chatoyant(goldMaterial(0.25, 0.25), undefined, 0.6));
+    const gold = this.mat("doorGold", () => chatoyant(goldMaterial(0.3, 0.12), undefined, 0.45));
     // Stepped deco frame.
     for (let k = 0; k < 3; k++) {
       const inset = k * 0.06;
@@ -295,7 +351,7 @@ export class RoomView {
     }
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
-    const shutter = new THREE.Mesh(new THREE.PlaneGeometry(dw, dh), new THREE.MeshStandardMaterial({ map: tex, metalness: 0.8, roughness: 0.35, envMapIntensity: 0.8 }));
+    const shutter = new THREE.Mesh(new THREE.PlaneGeometry(dw, dh), chatoyant(new THREE.MeshStandardMaterial({ map: tex, metalness: 0.8, roughness: 0.35, envMapIntensity: 0.8 }), undefined, 0.35, 30));
     shutter.position.set(u, dh * 1.5, -0.08);
     g.add(shutter);
     const lampMat = glowMaterial(P.gold, 2);
@@ -401,6 +457,23 @@ export class RoomView {
     cap.position.y = y + 0.025;
     g.add(cap);
     y += 0.05;
+    if (style === "case" && this.theme === "hotel") {
+      // Safe-deposit cabinet: a wall of numbered brass-trimmed boxes.
+      const boxH = b.h - y;
+      const steel = this.mat("steel", () => new THREE.MeshStandardMaterial({ color: "#2a2b2e", metalness: 0.85, roughness: 0.35, envMapIntensity: 0.9 }));
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(b.w - 0.02, boxH, b.d - 0.02), steel);
+      cab.position.y = y + boxH / 2;
+      g.add(cab);
+      const cols = Math.max(2, Math.round(b.w / 0.22)), rows = 4;
+      for (const sz of [1, -1]) for (let c = 0; c < cols; c++) for (let rr = 0; rr < rows; rr++) {
+        const door = new THREE.Mesh(new THREE.BoxGeometry((b.w - 0.06) / cols - 0.02, boxH / rows - 0.03, 0.006), steel);
+        door.position.set(-b.w / 2 + 0.03 + ((b.w - 0.06) / cols) * (c + 0.5), y + (boxH / rows) * (rr + 0.5), sz * (b.d / 2 - 0.005));
+        const knob = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.012, 0.012), gold);
+        knob.position.copy(door.position); knob.position.z += sz * 0.006;
+        g.add(door, knob);
+      }
+      return g;
+    }
     if (style === "case") {
       // Glass vitrine with a small treasure silhouette.
       const glassH = b.h - y;

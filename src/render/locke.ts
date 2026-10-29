@@ -2,9 +2,9 @@ import * as THREE from "three";
 import type { V2 } from "../sim/math2d";
 import type { Pose } from "../sim/run";
 import { Hose } from "./hose";
-import { P } from "./palette";
 import { Spring, ease } from "./spring";
-import { inked, toonMaterial } from "./toon";
+import { inked } from "./toon";
+import { DIM, applyModelOverrides, buildGlasses, buildGlove, buildHat, buildHead, buildShoe, buildTorso, mats, type Expression, type Slot } from "./lockeParts";
 
 export interface LockeFrame {
   pos: V2; vel: V2; facing: number; pose: Pose;
@@ -28,9 +28,11 @@ export class LockeView {
   private torso = new THREE.Group();
   private head = new THREE.Group();
   private hatPivot = new THREE.Group();
-  private hat = new THREE.Group();
-  private glasses = new THREE.Group();
+  private hat: THREE.Group;
+  private glasses: THREE.Group;
+  private eyes = new THREE.Group();
   private browL: THREE.Mesh; private browR: THREE.Mesh;
+  private mouths: Record<Expression, THREE.Object3D>;
   private tailL: THREE.Object3D; private tailR: THREE.Object3D;
   private arms: [Hose, Hose];
   private legs: [Hose, Hose];
@@ -39,9 +41,13 @@ export class LockeView {
   private shoes: [THREE.Group, THREE.Group];
   private shadow: THREE.Mesh;
   readonly hatSparkle: THREE.Mesh;
+  /** Swappable part slots (see lockeParts.ts / docs/locke-model-spec.md). */
+  readonly slots: Partial<Record<Slot, THREE.Group>> = {};
+  private mood: Expression = "cool";
+  private moodTimer = 0;
 
   // Secondary motion.
-  private hip = new Spring(0.5, 5, 0.55);
+  private hip = new Spring(DIM.hipY, 5, 0.55);
   private lean = new Spring(0, 4, 0.6);
   private squash = new Spring(1, 5.5, 0.28);
   private thin = new Spring(1, 6, 0.35);
@@ -61,195 +67,84 @@ export class LockeView {
   constructor() {
     this.root.add(this.body);
     this.body.add(this.torso);
-    const suit = toonMaterial({ color: P.suit, shade: "#56506a", stripes: 26, stripeColor: "#7f7787", stripeMode: 0, gloss: 0.15 });
-    const sleeve = toonMaterial({ color: P.suit, shade: "#56506a", stripes: 5, stripeColor: "#7f7787", stripeMode: 1, gloss: 0.1 });
-    const cream = toonMaterial({ color: P.cream, shade: "#b49a86", gloss: 0.2 });
-    const white = toonMaterial({ color: P.glove, shade: "#b9b0c2", gloss: 0.35 });
-    const black = toonMaterial({ color: "#121015", shade: "#2a2433", gloss: 0.6, rim: 0.8 });
-    const gold = toonMaterial({ color: P.gold, shade: "#7b5320", gloss: 1.2, emissive: "#2a1a04" });
-    const brown = toonMaterial({ color: P.brown, shade: "#3b2414", gloss: 0.3 });
-    const hatMat = toonMaterial({ color: "#1d1b21", shade: "#3c3546", gloss: 0.3, rim: 0.35 });
+    this.torso.name = "pt_hips";
+    const m = mats();
 
-    // Torso: a pear-shaped bean.
-    const prof = [[0, 0], [0.13, 0.01], [0.2, 0.08], [0.215, 0.17], [0.2, 0.3], [0.165, 0.42], [0.12, 0.5], [0.05, 0.555], [0, 0.56]].map(([r, y]) => new THREE.Vector2(r!, y!));
-    const torsoMesh = inked(new THREE.LatheGeometry(prof, 28), suit, 0.014);
-    torsoMesh.scale.set(1, 1, 0.86);
-    this.torso.add(torsoMesh);
-    const shirt = inked(new THREE.SphereGeometry(0.1, 18, 14), cream, 0.008);
-    shirt.scale.set(0.8, 1.15, 0.35);
-    shirt.position.set(0, 0.41, 0.15);
-    this.torso.add(shirt);
-    const tieGeo = new THREE.ConeGeometry(0.035, 0.16, 4);
-    const tie = inked(tieGeo, brown, 0.006);
-    tie.rotation.x = Math.PI; tie.scale.set(1, 1, 0.4);
-    tie.position.set(0, 0.38, 0.185);
-    this.torso.add(tie);
-    const knot = inked(new THREE.SphereGeometry(0.022, 10, 8), brown, 0.005);
-    knot.position.set(0, 0.47, 0.17);
-    this.torso.add(knot);
-    // The gold crown tie pin.
-    const crown = new THREE.Group();
-    const band = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.012, 0.01), gold);
-    crown.add(band);
-    for (let i = -1; i <= 1; i++) {
-      const pt = new THREE.Mesh(new THREE.ConeGeometry(0.007, 0.022, 4), gold);
-      pt.position.set(i * 0.014, 0.016, 0);
-      crown.add(pt);
-    }
-    crown.position.set(0, 0.4, 0.2);
-    this.torso.add(crown);
-    for (const y of [0.24, 0.16]) {
-      const btn = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), gold);
-      btn.position.set(0, y, 0.192);
-      this.torso.add(btn);
-    }
-    // Coat tails.
-    const tailGeo = new THREE.SphereGeometry(0.1, 14, 10);
-    tailGeo.translate(0, -0.1, 0);
+    const torsoPart = buildTorso(m);
+    this.torso.add(torsoPart);
+    this.slots.torso = torsoPart;
+    // Short jacket tails.
+    const tailGeo = new THREE.SphereGeometry(0.09, 14, 10);
+    tailGeo.translate(0, -0.09, 0);
     const mkTail = (sx: number) => {
       const pivot = new THREE.Group();
-      pivot.position.set(sx * 0.07, 0.07, -0.15);
-      const t = inked(tailGeo, suit, 0.01);
-      t.scale.set(0.55, 1.15, 0.16);
+      pivot.position.set(sx * 0.07, 0.06, -0.1);
+      const t = inked(tailGeo, m.suit, 0.008);
+      t.scale.set(0.6, 1.0, 0.14);
       pivot.add(t);
       this.torso.add(pivot);
       return pivot;
     };
     this.tailL = mkTail(1); this.tailR = mkTail(-1);
-    // Watch chain.
+    // Gold pocket-watch chain across the vest (chatoyant).
     this.chain = new Hose(14, 5);
-    const chainMesh = new THREE.Mesh(this.chain.geometry, gold);
-    this.torso.add(chainMesh);
-    const watchPocket = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.008, 14), gold);
-    watchPocket.rotation.x = Math.PI / 2;
-    watchPocket.position.set(0.15, 0.13, 0.13);
-    this.torso.add(watchPocket);
+    this.torso.add(new THREE.Mesh(this.chain.geometry, m.gold));
+    const fob = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.007, 14), m.gold);
+    fob.rotation.x = Math.PI / 2; fob.position.set(0.12, 0.22, 0.1);
+    this.torso.add(fob);
 
-    // Head.
-    this.head.position.set(0, 0.7, 0.02);
+    // Head on the neck attach point.
+    this.head.name = "pt_neck";
+    this.head.position.set(0, DIM.neckY, 0.01);
     this.torso.add(this.head);
-    const headMesh = inked(new THREE.SphereGeometry(0.17, 28, 20), cream, 0.012);
-    headMesh.scale.set(1, 1.05, 0.95);
-    this.head.add(headMesh);
+    const neck = inked(new THREE.CylinderGeometry(0.045, 0.05, 0.09, 14), m.skin, 0.006);
+    neck.position.y = -0.02;
+    this.head.add(neck);
+    const headParts = buildHead(m);
+    this.head.add(headParts.group);
+    this.slots.head = headParts.group;
+    [this.browL, this.browR] = headParts.brows;
+    this.mouths = headParts.mouths;
+    // Eyes hide behind the shades; the surprised take pops the glasses and shows them.
     for (const sx of [-1, 1]) {
-      const ear = inked(new THREE.SphereGeometry(0.045, 12, 10), cream, 0.008);
-      ear.scale.set(0.5, 1, 0.8);
-      ear.position.set(sx * 0.165, 0.0, -0.01);
-      this.head.add(ear);
+      const white = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), m.white);
+      white.scale.set(1, 1.2, 0.5); white.position.set(sx * 0.045, 0, 0);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 8), m.black);
+      pupil.position.set(sx * 0.045, -0.003, 0.012);
+      this.eyes.add(white, pupil);
     }
-    // Round sunglasses with gold rims.
-    for (const sx of [-1, 1]) {
-      const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.02, 24), black);
-      lens.rotation.x = Math.PI / 2;
-      lens.position.set(sx * 0.065, 0, 0);
-      this.glasses.add(lens);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.009, 8, 28), gold);
-      rim.position.set(sx * 0.065, 0, 0.008);
-      this.glasses.add(rim);
-      const glint = new THREE.Mesh(new THREE.CircleGeometry(0.012, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 1, 1).multiplyScalar(2), toneMapped: false }));
-      glint.position.set(sx * 0.065 - 0.022, 0.022, 0.012);
-      this.glasses.add(glint);
-    }
-    const bridge = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.03, 6), gold);
-    bridge.rotation.z = Math.PI / 2;
-    bridge.position.set(0, 0.012, 0.004);
-    this.glasses.add(bridge);
-    this.glasses.position.set(0, 0.025, 0.158);
-    this.head.add(this.glasses);
-    const browGeo = new THREE.CapsuleGeometry(0.009, 0.05, 4, 8);
-    browGeo.rotateZ(Math.PI / 2);
-    this.browL = new THREE.Mesh(browGeo, black); this.browR = new THREE.Mesh(browGeo, black);
-    this.browL.position.set(0.065, 0.1, 0.15); this.browR.position.set(-0.065, 0.1, 0.15);
-    this.head.add(this.browL, this.browR);
-    const nose = inked(new THREE.SphereGeometry(0.03, 12, 10), toonMaterial({ color: "#d9a98a", shade: "#9a6a5a", gloss: 0.6 }), 0.006);
-    nose.scale.set(1, 0.8, 0.9);
-    nose.position.set(0, -0.035, 0.175);
-    this.head.add(nose);
-    for (const sx of [-1, 1]) {
-      const mo = new THREE.Mesh(new THREE.CapsuleGeometry(0.008, 0.035, 4, 8), black);
-      mo.rotation.z = Math.PI / 2 + sx * 0.25;
-      mo.position.set(sx * 0.024, -0.064, 0.166);
-      this.head.add(mo);
-    }
-    const smile = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.007, 6, 18, Math.PI * 0.55), black);
-    smile.rotation.set(0.2, 0, Math.PI + 0.55);
-    smile.position.set(0.012, -0.075, 0.152);
-    this.head.add(smile);
+    this.eyes.position.set(0, DIM.headR * 1.18, DIM.eyesZ - 0.006);
+    this.head.add(this.eyes);
+    this.glasses = buildGlasses(m);
+    const eyesPt = new THREE.Group(); eyesPt.name = "pt_eyes";
+    eyesPt.position.set(0, DIM.headR * 1.18, DIM.eyesZ);
+    eyesPt.add(this.glasses);
+    this.head.add(eyesPt);
+    this.slots.glasses = this.glasses;
 
     // Fedora (lags one beat behind the head).
-    this.hatPivot.position.set(0, 0.12, -0.005);
+    this.hatPivot.name = "pt_crown";
+    this.hatPivot.position.set(0, DIM.crownY * 1.8, -0.005);
     this.head.add(this.hatPivot);
+    this.hat = buildHat(m);
     this.hatPivot.add(this.hat);
-    const brimProf = [[0, 0], [0.2, 0.0], [0.255, 0.018], [0.27, 0.035], [0.262, 0.03], [0.2, 0.012], [0, 0.012]].map(([r, y]) => new THREE.Vector2(r!, y!));
-    const brim = inked(new THREE.LatheGeometry(brimProf, 32), hatMat, 0.008);
-    brim.scale.set(1, 1, 0.92);
-    this.hat.add(brim);
-    const crownProf = [[0, 0.17], [0.07, 0.165], [0.12, 0.14], [0.145, 0.08], [0.15, 0.0], [0, 0]].map(([r, y]) => new THREE.Vector2(r!, y!));
-    const crownMesh = inked(new THREE.LatheGeometry(crownProf, 28), hatMat, 0.01);
-    crownMesh.scale.set(1, 1, 0.88);
-    this.hat.add(crownMesh);
-    const hatBand = new THREE.Mesh(new THREE.CylinderGeometry(0.151, 0.153, 0.035, 28, 1, true), brown);
-    hatBand.scale.set(1, 1, 0.88);
-    hatBand.position.y = 0.03;
-    this.hat.add(hatBand);
-    const pinch = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.012, 0.18), toonMaterial({ color: "#0c0b0e", gloss: 0 }));
-    pinch.position.set(0, 0.165, 0);
-    this.hat.add(pinch);
-    this.hat.rotation.z = 0.14;
-    this.hatSparkle = new THREE.Mesh(new THREE.OctahedronGeometry(0.02, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.8, 2.4), toneMapped: false }));
-    this.hatSparkle.position.set(0.1, 0.06, 0.12);
+    this.slots.hat = this.hat;
+    this.hatSparkle = new THREE.Mesh(new THREE.OctahedronGeometry(0.018, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.8, 2.4), toneMapped: false }));
+    this.hatSparkle.position.set(0.08, 0.05, 0.1);
     this.hatSparkle.visible = false;
     this.hat.add(this.hatSparkle);
 
-    // Hose limbs.
+    // Hose limbs (procedural: the stretch needs them).
     this.arms = [new Hose(26, 10), new Hose(64, 10)];
     this.legs = [new Hose(22, 10), new Hose(22, 10)];
-    for (const h of this.arms) this.body.add(inked(h.geometry, sleeve, 0.01));
-    for (const h of this.legs) this.body.add(inked(h.geometry, sleeve, 0.01));
-
-    // Gloves: puffy cartoon mitts with cuff flares and stitched backs.
-    const mkGlove = (sx: number) => {
-      const g = new THREE.Group();
-      const palm = inked(new THREE.SphereGeometry(0.07, 18, 14), white, 0.011);
-      palm.scale.set(1, 0.72, 1.12);
-      palm.position.z = 0.055;
-      g.add(palm);
-      const thumb = inked(new THREE.SphereGeometry(0.03, 12, 10), white, 0.008);
-      thumb.scale.set(0.8, 0.8, 1.3);
-      thumb.position.set(sx * 0.06, 0.012, 0.04);
-      g.add(thumb);
-      const cuff = inked(new THREE.CylinderGeometry(0.06, 0.045, 0.05, 18), white, 0.009);
-      cuff.rotation.x = Math.PI / 2;
-      cuff.position.z = -0.005;
-      g.add(cuff);
-      for (const off of [-0.02, 0, 0.02]) {
-        const st = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.003, 0.045), black);
-        st.position.set(off, 0.05, 0.05);
-        g.add(st);
-      }
-      this.body.add(g);
-      return g;
-    };
-    this.gloves = [mkGlove(1), mkGlove(-1)];
-    // Two-tone spectator shoes.
-    const mkShoe = () => {
-      const g = new THREE.Group();
-      const toe = inked(new THREE.SphereGeometry(0.07, 18, 12), black, 0.01);
-      toe.scale.set(0.85, 0.62, 1.35);
-      toe.position.set(0, 0.035, 0.06);
-      g.add(toe);
-      const spat = inked(new THREE.SphereGeometry(0.06, 16, 12), cream, 0.009);
-      spat.scale.set(0.9, 0.85, 1.0);
-      spat.position.set(0, 0.05, -0.02);
-      g.add(spat);
-      const sole = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.012, 0.22), black);
-      sole.position.set(0, 0.006, 0.03);
-      g.add(sole);
-      g.scale.setScalar(1.3);
-      this.body.add(g);
-      return g;
-    };
-    this.shoes = [mkShoe(), mkShoe()];
+    for (const h of this.arms) this.body.add(inked(h.geometry, m.sleeve, 0.009));
+    for (const h of this.legs) this.body.add(inked(h.geometry, m.sleeve, 0.009));
+    this.gloves = [buildGlove(m, 1), buildGlove(m, -1)];
+    this.shoes = [buildShoe(m, 1), buildShoe(m, -1)];
+    for (const g of [...this.gloves, ...this.shoes]) this.body.add(g);
+    this.slots.glove_L = this.gloves[0]; this.slots.glove_R = this.gloves[1];
+    this.slots.shoe_L = this.shoes[0]; this.slots.shoe_R = this.shoes[1];
+    void applyModelOverrides(this.slots);
 
     // Contact shadow.
     const sc = document.createElement("canvas");
@@ -264,6 +159,9 @@ export class LockeView {
     this.shadow.renderOrder = 2;
     this.root.add(this.shadow);
   }
+
+  /** Hold an expression for a while (cool is the resting face). */
+  react(e: Expression, seconds: number) { this.mood = e; this.moodTimer = seconds; }
 
   /** Squash impulse (boing on snap-back, landing). */
   boing(amount = 1) { this.squash.kick(-3.2 * amount); this.hatY.kick(1.4 * amount); }
@@ -282,15 +180,15 @@ export class LockeView {
     this.prevTake = take;
 
     // Hip height and lean per pose.
-    let hipT = f.pose === "crouch" ? 0.28 : 0.5;
-    let leanT = f.pose === "crouch" ? 0.42 : 0.04 + walkW * 0.18;
+    let hipT = f.pose === "crouch" ? 0.42 : DIM.hipY;
+    let leanT = f.pose === "crouch" ? 0.78 : 0.04 + walkW * 0.16;
     if (f.pose === "flatten") leanT = 0;
-    if (f.stretching) { leanT = 0.22; hipT -= 0.04; }
-    const idleBob = (1 - walkW) * (1 - bounce) * 0.028;
-    const walkBob = walkW * Math.abs(Math.sin(f.stepPhase * Math.PI)) * 0.035;
+    if (f.stretching) { leanT = 0.24; hipT -= 0.07; }
+    const idleBob = (1 - walkW) * (1 - bounce) * 0.04;
+    const walkBob = walkW * Math.abs(Math.sin(f.stepPhase * Math.PI)) * 0.05;
     hipT += walkBob - idleBob;
-    if (take >= 0) hipT += Math.sin(Math.min(1, take * 1.6) * Math.PI) * 0.32;
-    if (f.caught) hipT = 0.36;
+    if (take >= 0) hipT += Math.sin(Math.min(1, take * 1.6) * Math.PI) * 0.45;
+    if (f.caught) hipT = 0.6;
     const hipY = this.hip.step(hipT, dt);
     const hv = this.hip.v;
     const ha = (hv - this.lastHipVel) / Math.max(dt, 1e-4);
@@ -313,13 +211,21 @@ export class LockeView {
     const wantTurn = f.smug ? Math.atan2(Math.sin(camLocal), Math.cos(camLocal)) * 0.6 : 0;
     this.head.rotation.y = this.headTurn.step(wantTurn, dt);
     this.head.rotation.x = -this.lean.x * 0.6 + (1 - walkW) * (1 - bounce) * 0.05;
-    const browT = (f.smug ? 0.05 : 0) + (take >= 0 ? 0.03 : 0);
+    // Expressions from the sheet: cool (rest), grin (success), surprised (beam contact), serious (later venues).
+    this.moodTimer = Math.max(0, this.moodTimer - dt);
+    let mood: Expression = this.moodTimer > 0 ? this.mood : "cool";
+    if (take >= 0 || f.caught) mood = "surprised";
+    else if (f.celebrate >= 0 || f.smug) mood = "grin";
+    for (const k of Object.keys(this.mouths) as Expression[]) this.mouths[k].visible = k === mood;
+    const browT = mood === "surprised" ? 0.035 : mood === "grin" ? 0.012 : mood === "serious" ? -0.01 : 0;
     const br = this.brow.step(browT, dt);
-    this.browL.position.y = 0.1 + br * 0.8;
-    this.browR.position.y = 0.1 + br * (f.smug ? 0.2 : 0.8);
-    this.browL.rotation.z = f.smug ? 0.25 : 0;
-    const pop = this.pop.step(f.caught ? 0.04 : 0, dt);
-    this.glasses.position.y = 0.025 + pop * 0.6;
+    const by = DIM.headR * 1.58;
+    this.browL.position.y = by + br; this.browR.position.y = by + br * (f.smug ? 0.3 : 1);
+    this.browL.rotation.z = mood === "serious" ? -0.3 : f.smug ? 0.3 : 0.08;
+    this.browR.rotation.z = mood === "serious" ? 0.3 : -0.08;
+    const pop = this.pop.step(mood === "surprised" ? 0.05 : 0, dt);
+    this.glasses.position.y = pop;
+    this.eyes.visible = pop > 0.012;
 
     // Hat: lags a beat, flies on a take.
     const hatLift = this.hatY.step(0, dt) + -ha * 0.00025;
@@ -330,7 +236,7 @@ export class LockeView {
       hatTip = Math.sin(c * Math.PI);
       hatOff += hatTip * 0.13;
     }
-    this.hatPivot.position.y = 0.12 + hatOff;
+    this.hatPivot.position.y = DIM.crownY * 1.8 + hatOff;
     this.hatPivot.rotation.x = this.hatTilt.step(-this.lean.x * 0.3 + walkW * 0.08, dt) - hatTip * 0.5;
     this.hat.rotation.z = 0.14 + Math.sin(this.time * 1.3) * 0.01;
     this.hatSparkle.visible = f.hasPrize;
@@ -342,35 +248,35 @@ export class LockeView {
     this.tailR.rotation.x = tail + Math.sin(this.time * 9 + 1.3) * 0.04 * walkW;
     const sag = this.chainSag.step(0.035 + walkW * 0.01, dt);
     this.chainSag.kick(-hv * dt * 3);
-    this.chain.bezier(v3(0, 0.2, 0.2), v3(0.03, 0.2 - sag * 1.6, 0.22), v3(0.11, 0.15 - sag, 0.19), v3(0.15, 0.135, 0.135), 0.0055, 0.0055);
+    this.chain.bezier(v3(0, 0.3, 0.14), v3(0.03, 0.3 - sag * 1.6, 0.152), v3(0.09, 0.24 - sag, 0.14), v3(0.12, 0.22, 0.1), 0.005, 0.005);
 
     this.torso.updateMatrix();
     this.head.updateMatrix();
     const T = this.torso.matrix;
-    const shoulder = (sx: number) => v3(sx * 0.19, 0.43, 0.0).applyMatrix4(T);
-    const hipA = (sx: number) => v3(sx * 0.085, 0.05, 0).applyMatrix4(T);
+    const shoulder = (sx: number) => v3(sx * DIM.shoulderX, DIM.shoulderY, 0.0).applyMatrix4(T);
+    const hipA = (sx: number) => v3(sx * DIM.hipX, 0.04, 0).applyMatrix4(T);
 
     // Feet: tip-toe gait on eighth notes; planted wide while reaching.
-    const stride = 0.3;
+    const stride = 0.42;
     for (let i = 0; i < 2; i++) {
       const sx = i === 0 ? 1 : -1;
       const p = (((f.stepPhase / 2 + i * 0.5) % 1) + 1) % 1;
       let fz = 0, fy = 0, pitch = 0;
       if (walkW > 0.02 && !f.stretching) {
-        if (p < 0.5) { const u = ease.inOut(p / 0.5); fz = (-stride / 2 + stride * u) * walkW; fy = Math.sin(Math.PI * (p / 0.5)) * 0.12 * walkW; pitch = 0.5; }
+        if (p < 0.5) { const u = ease.inOut(p / 0.5); fz = (-stride / 2 + stride * u) * walkW; fy = Math.sin(Math.PI * (p / 0.5)) * 0.16 * walkW; pitch = 0.5; }
         else { const u = (p - 0.5) / 0.5; fz = (stride / 2 - stride * u) * walkW; pitch = 0.45 * walkW; }
       }
-      let fx = sx * (f.pose === "crouch" ? 0.16 : 0.1);
+      let fx = sx * (f.pose === "crouch" ? 0.2 : 0.1);
       if (f.stretching) { fx = sx * 0.17; fz = sx * 0.06; }
-      if (take >= 0) { fy += Math.sin(Math.min(1, take * 1.6) * Math.PI) * 0.18; pitch = 0.8; }
+      if (take >= 0) { fy += Math.sin(Math.min(1, take * 1.6) * Math.PI) * 0.26; pitch = 0.8; }
       const ankle = v3(fx, 0.06 + fy + pitch * 0.03, fz);
       const shoe = this.shoes[i]!;
       shoe.position.set(ankle.x, ankle.y - 0.06, ankle.z);
       shoe.rotation.set(pitch, 0, 0);
       const h = hipA(sx);
       const legLen = h.distanceTo(ankle);
-      const bow = f.pose === "crouch" ? v3(sx * 0.2, 0, 0.14) : v3(sx * 0.02, 0, 0.06 + walkW * 0.04);
-      this.legs[i]!.bezier(h, h.clone().add(v3(bow.x, -legLen * 0.38, bow.z)), ankle.clone().add(v3(bow.x * 0.7, legLen * 0.38, bow.z * 0.7)), ankle.clone().add(v3(0, 0.0, -0.01)), 0.038, 0.034);
+      const bow = f.pose === "crouch" ? v3(sx * 0.26, 0, 0.2) : v3(sx * 0.02, 0, 0.08 + walkW * 0.05);
+      this.legs[i]!.bezier(h, h.clone().add(v3(bow.x, -legLen * 0.38, bow.z)), ankle.clone().add(v3(bow.x * 0.7, legLen * 0.38, bow.z * 0.7)), ankle.clone().add(v3(0, 0.0, -0.01)), 0.036, 0.032);
     }
 
     // Hands.
@@ -379,20 +285,20 @@ export class LockeView {
     for (let i = 0; i < 2; i++) {
       const sx = i === 0 ? 1 : -1;
       let t: THREE.Vector3;
-      if (take >= 0) t = v3(sx * 0.42, hipY + 0.95 + Math.sin(take * 20) * 0.03, 0.06);
-      else if (f.caught) t = v3(sx * 0.3, hipY + 0.05, 0.1);
-      else if (f.pose === "flatten") t = v3(sx * 0.21, hipY - 0.02, 0.02);
-      else if (f.pose === "crouch") t = v3(sx * 0.24, hipY + 0.16, 0.3 + swing * sx * 0.04 * walkW);
+      if (take >= 0) t = v3(sx * 0.48, hipY + 1.15 + Math.sin(take * 20) * 0.03, 0.06);
+      else if (f.caught) t = v3(sx * 0.32, hipY + 0.1, 0.12);
+      else if (f.pose === "flatten") t = v3(sx * 0.22, hipY - 0.04, 0.02);
+      else if (f.pose === "crouch") t = v3(sx * 0.27, hipY + 0.2, 0.42 + swing * sx * 0.05 * walkW);
       else {
-        const idle = v3(sx * 0.27, hipY - 0.04 + (1 - bounce) * 0.015, 0.03 + Math.sin(f.beat * Math.PI) * 0.015 * sx);
-        const sneak = v3(sx * 0.17, hipY + 0.38 + swing * sx * 0.04, 0.24);
+        const idle = v3(sx * 0.27, hipY + 0.02 + (1 - bounce) * 0.02, 0.04 + Math.sin(f.beat * Math.PI) * 0.02 * sx);
+        const sneak = v3(sx * 0.17, hipY + 0.5 + swing * sx * 0.05, 0.28);
         t = idle.lerp(sneak, walkW);
       }
       handTargets.push(t);
     }
     // Left hand steadies the hat while reaching; right hand tips it on success.
     this.hatPivot.updateMatrixWorld(true);
-    const hatBody = v3(0.1, 0.06, 0.08).applyMatrix4(this.head.matrix).applyMatrix4(T);
+    const hatBody = v3(0.08, DIM.crownY * 1.8 + 0.04, 0.06).applyMatrix4(this.head.matrix).applyMatrix4(T);
     if (f.stretching) handTargets[0] = hatBody.clone().add(v3(0.05, 0.12, 0.02));
     if (f.celebrate >= 0 && f.celebrate < 1.1) handTargets[1] = hatBody.clone().add(v3(-0.16, 0.1 + Math.sin(Math.min(1, f.celebrate / 1.1) * Math.PI) * 0.13, 0.06));
 
@@ -418,13 +324,13 @@ export class LockeView {
         if (pts.length === 2) pts.splice(1, 0, s.clone().lerp(lastLocal, 0.5).add(v3(0, 0.04, 0)));
         // Lift the first stretch out of the shoulder so it never kinks.
         if (pts.length > 2) pts[1]!.y = (pts[1]!.y + s.y) / 2;
-        this.arms[1].through(pts, 0.03, 0.03);
+        this.arms[1].through(pts, 0.028, 0.028);
         this.arms[1].end(glove.position);
         this.arms[1].endTangent(tan);
       } else {
         const h = handTargets[i]!;
-        const out = v3(sx * 0.12, -0.1, 0.02);
-        this.arms[i]!.bezier(s, s.clone().add(out), h.clone().add(v3(sx * 0.05, -0.14, -0.06)), h, 0.032, 0.03);
+        const out = v3(sx * 0.12, -0.14, 0.02);
+        this.arms[i]!.bezier(s, s.clone().add(out), h.clone().add(v3(sx * 0.05, -0.16, -0.06)), h, 0.03, 0.028);
         this.arms[i]!.end(glove.position);
         this.arms[i]!.endTangent(tan);
       }
@@ -433,7 +339,7 @@ export class LockeView {
     this.gloves[1].getWorldPosition(this.handWorld);
     this.hatPivot.getWorldPosition(this.hatWorld);
 
-    this.shadow.scale.setScalar(1 - (hipY - 0.5) * 0.8);
-    (this.shadow.material as THREE.MeshBasicMaterial).opacity = 0.9 - Math.max(0, hipY - 0.5);
+    this.shadow.scale.setScalar(1 - (hipY - DIM.hipY) * 0.6);
+    (this.shadow.material as THREE.MeshBasicMaterial).opacity = 0.9 - Math.max(0, hipY - DIM.hipY);
   }
 }

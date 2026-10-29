@@ -582,6 +582,44 @@ export class AudioEngine {
     this.stemSources = {};
   }
 
+  private clips = new Map<string, Promise<AudioBuffer | null>>();
+
+  /**
+   * Locke's voice slot. A recorded clip (lines.json "clip") plays if it loads; otherwise a short
+   * placeholder vocal: a low hum, grunt, chuckle or tsk, so every line has a voice to replace later.
+   */
+  speak(line: { clip?: string; hum?: string }) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (line.clip) {
+      let p = this.clips.get(line.clip);
+      if (!p) { p = fetch(line.clip).then((r) => r.arrayBuffer()).then((b) => ctx.decodeAudioData(b)).catch(() => null); this.clips.set(line.clip, p); }
+      void p.then((buf) => {
+        if (!buf) return this.hum(line.hum ?? "hum");
+        const src = ctx.createBufferSource(); src.buffer = buf; src.connect(this.uiBus); src.start();
+      });
+      return;
+    }
+    this.hum(line.hum ?? "hum");
+  }
+
+  private hum(kind: string) {
+    const ctx = this.ctx!;
+    const t = ctx.currentTime;
+    const voice = (f0: number, f1: number, at: number, dur: number, level: number, formant = 700) => {
+      const o = ctx.createOscillator(); o.type = "sawtooth";
+      o.frequency.setValueAtTime(f0, at); o.frequency.exponentialRampToValueAtTime(f1, at + dur);
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = formant; bp.Q.value = 3;
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1600;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(level, at + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+      o.connect(bp).connect(lp).connect(g).connect(this.uiBus); o.start(at); o.stop(at + dur + 0.05);
+    };
+    if (kind === "hum") { voice(118, 124, t, 0.28, 0.09, 420); voice(132, 112, t + 0.3, 0.35, 0.08, 420); }
+    else if (kind === "grunt") voice(150, 95, t, 0.18, 0.1, 600);
+    else if (kind === "chuckle") for (let i = 0; i < 3; i++) voice(165 - i * 8, 140 - i * 8, t + i * 0.13, 0.1, 0.08, 900);
+    else if (kind === "tsk") this.burst(5200, 4, 0.03, 0.12, this.uiBus, t);
+  }
+
   stopAll() {
     for (const v of this.voices.values()) v.gain.gain.setTargetAtTime(0, this.ctx?.currentTime ?? 0, 0.1);
   }

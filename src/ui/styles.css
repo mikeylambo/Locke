@@ -26,7 +26,10 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--black)
 #ui button { font: inherit; color: inherit; }
 
 /* ——— Deco frame: double gold rule with stepped corners ——— */
-.deco-frame { position: relative; background: linear-gradient(180deg, rgba(14, 12, 18, 0.86), rgba(6, 5, 8, 0.9)); border: 1px solid rgba(217, 170, 82, 0.55); box-shadow: inset 0 0 0 3px rgba(5, 4, 7, 0.9), inset 0 0 0 4px rgba(217, 170, 82, 0.28), 0 10px 40px rgba(0, 0, 0, 0.5); }
+.deco-frame { position: relative; background:
+  /* Cat's-eye sheen: a soft band that glides with the camera (--sheen set per frame). */
+  linear-gradient(105deg, transparent calc(var(--sheen, 30%) - 9%), rgba(255, 228, 168, 0.11) var(--sheen, 30%), transparent calc(var(--sheen, 30%) + 9%)),
+  linear-gradient(180deg, rgba(14, 12, 18, 0.86), rgba(6, 5, 8, 0.9)); border: 1px solid rgba(217, 170, 82, 0.55); box-shadow: inset 0 0 0 3px rgba(5, 4, 7, 0.9), inset 0 0 0 4px rgba(217, 170, 82, 0.28), 0 10px 40px rgba(0, 0, 0, 0.5); }
 .deco-frame::before, .deco-frame::after { content: ""; position: absolute; width: 14px; height: 14px; border: 2px solid var(--gold); pointer-events: none; }
 .deco-frame::before { top: -5px; left: -5px; border-right: none; border-bottom: none; }
 .deco-frame::after { bottom: -5px; right: -5px; border-left: none; border-top: none; }
@@ -229,3 +232,12 @@ kbd { font-family: var(--cond); font-weight: 700; font-size: 13px; letter-spacin
 
 .ghost-label { position: absolute; left: 0; top: 0; translate: -50% -50%; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
 .ghost-label.show { opacity: 0.9; }
+
+/* Locke's own lines: a speech line beside him, glyph small. No modern bubbles. */
+.speech { position: absolute; left: 0; top: 0; margin: -10px 0 0 34px; max-width: 320px; display: flex; align-items: center; gap: 8px; pointer-events: none; opacity: 0; transition: opacity 0.4s; }
+.speech.show { opacity: 1; animation: sayIn 0.45s cubic-bezier(.2, 1.4, .5, 1); }
+@keyframes sayIn { from { opacity: 0; transform-origin: left; translate: -8px 4px; } }
+.speech .say { font-family: var(--news); font-style: italic; font-size: 17px; line-height: 1.2; color: var(--cream); text-shadow: 0 2px 6px #000, 0 0 2px #000; }
+.speech .say::before { content: "“"; color: var(--gold); margin-right: 1px; }
+.speech .say::after { content: "”"; color: var(--gold); margin-left: 1px; }
+.speech kbd { font-size: 10px; padding: 1px 5px; opacity: 0.85; }

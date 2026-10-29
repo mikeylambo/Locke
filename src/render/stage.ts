@@ -54,7 +54,7 @@ export class Stage {
   freeOrbit = true;
   baseDist = 15;
   /** Debug/photo override of the follow target. */
-  pin: { x: number; z: number } | null = null;
+  pin: { x: number; z: number; y?: number } | null = null;
   private shake = 0;
   private shakeT = 0;
 
@@ -157,7 +157,7 @@ export class Stage {
   setDist(d: number) { this.baseDist = d; this.resize(); }
 
   focus(x: number, z: number, weight: number) {
-    if (this.pin) { this.targetGoal.set(this.pin.x, 0.6, this.pin.z); return; }
+    if (this.pin) { this.targetGoal.set(this.pin.x, this.pin.y ?? 0.6, this.pin.z); return; }
     this.targetGoal.set(x * weight, 0.4, 0.3 + (z - 0.3) * weight);
   }
 

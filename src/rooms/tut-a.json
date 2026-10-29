@@ -1,25 +1,85 @@
 {
   "id": "tut-a",
-  "name": "First Steps",
+  "name": "Sal's Pawn & Loan",
   "venue": "gilded-museum",
-  "headline": "SHADOWY FIGURE TIPTOES PAST MUSEUM LASER",
+  "headline": "PAWNBROKER'S LUCKY RING WALKS OUT THE FRONT DOOR",
   "forgiving": true,
-  "size": { "w": 8, "d": 6, "h": 3.0 },
-  "key": { "root": "C", "mode": "major" },
+  "size": {
+    "w": 8,
+    "d": 6,
+    "h": 3.0
+  },
+  "key": {
+    "root": "C",
+    "mode": "major"
+  },
   "tempo": 100,
   "parTime": 20,
-  "spawn": { "x": -2.5, "z": 2.1, "facing": 110 },
-  "entry": { "id": "entry", "x": -2.5, "z": 3, "wall": "s", "phase": "in" },
+  "spawn": {
+    "x": -2.5,
+    "z": 2.1,
+    "facing": 110
+  },
+  "entry": {
+    "id": "entry",
+    "x": -2.5,
+    "z": 3,
+    "wall": "s",
+    "phase": "in"
+  },
   "blocks": [
-    { "x": 2.2, "z": -1.9, "w": 0.7, "d": 0.7, "h": 0.95, "style": "pedestal" },
-    { "x": 1.2, "z": 0, "w": 0.4, "d": 0.4, "h": 2.6, "style": "column" }
+    {
+      "x": 2.2,
+      "z": -1.9,
+      "w": 0.7,
+      "d": 0.7,
+      "h": 0.95,
+      "style": "pedestal"
+    },
+    {
+      "x": 1.2,
+      "z": 0,
+      "w": 0.4,
+      "d": 0.4,
+      "h": 2.6,
+      "style": "column"
+    }
   ],
   "mounts": [],
   "sensors": [],
   "emitters": [
-    { "id": "rope", "type": "static", "x": -4, "z": 0, "angle": 0, "bands": ["low", "mid", "high"], "note": 1, "housing": "wall" }
+    {
+      "id": "rope",
+      "type": "static",
+      "x": -4,
+      "z": 0,
+      "angle": 0,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "note": 1,
+      "housing": "wall"
+    }
   ],
-  "exits": [ { "id": "east", "x": 4, "z": 1.8, "wall": "e", "phase": "out" } ],
-  "prize": { "kind": "diamond", "x": 2.2, "z": -1.9, "value": 18000, "name": "The Little Star" },
-  "belt": []
+  "exits": [
+    {
+      "id": "east",
+      "x": 4,
+      "z": 1.8,
+      "wall": "e",
+      "phase": "out"
+    }
+  ],
+  "prize": {
+    "kind": "diamond",
+    "x": 2.2,
+    "z": -1.9,
+    "value": 18000,
+    "name": "Sal's Lucky Ring"
+  },
+  "belt": [],
+  "theme": "pawnshop",
+  "sign": "PAWN & LOAN"
 }

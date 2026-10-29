@@ -1,8 +1,8 @@
 {
   "id": "tut-card",
-  "name": "Card Trick",
+  "name": "The Belmont Safe-Deposit Room",
   "venue": "gilded-museum",
-  "headline": "CARD-THIN CAT BURGLAR SLIPS BETWEEN CABINETS",
+  "headline": "CARD-THIN CAT BURGLAR SLIPS INTO HOTEL VAULT",
   "forgiving": true,
   "size": {
     "w": 8,
@@ -118,7 +118,9 @@
     "x": 0,
     "z": -2.1,
     "value": 64000,
-    "name": "The Jack of Diamonds"
+    "name": "Box 52: The Jack of Diamonds"
   },
-  "belt": []
+  "belt": [],
+  "theme": "hotel",
+  "sign": "THE BELMONT \u00b7 SAFE DEPOSIT"
 }

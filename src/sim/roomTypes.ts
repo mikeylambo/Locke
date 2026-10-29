@@ -69,6 +69,10 @@ export interface RoomDef {
   exits: ExitDef[];
   prize: PrizeDef;
   belt: OpticKind[];
+  /** Visual dressing: same sim, different joint. */
+  theme?: "museum" | "pawnshop" | "jeweler" | "hotel" | "gallery";
+  /** Lettering over the back wall. */
+  sign?: string;
   /** Tutorial vaults: contact shows Disturbed but never escalates. */
   forgiving?: boolean;
 }

@@ -159,9 +159,8 @@ export class UI {
     this.hintEl = el("div", "hint deco-frame");
     this.flashEl = el("div", "flash");
     this.toastEl = el("div", "toast");
-    this.coachEl = el("div", "coach");
-    this.caseEl = el("div", "casing-hint", "Look around. The clock starts when you move.");
-    h.append(this.flashEl, tl, this.beltEl, this.meterEl, this.promptEl, this.coachEl, this.caseEl, this.toastEl);
+    this.coachEl = el("div", "speech");
+    h.append(this.flashEl, tl, this.beltEl, this.meterEl, this.promptEl, this.coachEl, this.toastEl);
   }
 
   setDevice(d: Device) { this.device = d; this.renderHint(); }
@@ -170,28 +169,16 @@ export class UI {
   glyph(action: string): string { return GLYPHS[this.device][action] ?? action; }
 
   private coachEl!: HTMLElement;
-  private ghostEls: HTMLElement[] = [];
-
-  /** Button glyphs riding the ghost preview of each rotation step. */
-  ghostLabels(list: Array<{ x: number; y: number; html: string }>) {
-    while (this.ghostEls.length < list.length) { const e = el("div", "ghost-label"); this.hud.appendChild(e); this.ghostEls.push(e); }
-    this.ghostEls.forEach((e, i) => {
-      const l = list[i];
-      e.classList.toggle("show", !!l);
-      if (!l) return;
-      e.style.transform = `translate(${l.x}px, ${l.y}px)`;
-      if (e.innerHTML !== l.html) e.innerHTML = l.html;
-    });
-  }
-  private caseEl!: HTMLElement;
-
-  /** Contextual teaching prompt anchored in the world; plus the first-load casing line. */
-  coach(c: { x: number; y: number; html: string } | null, casing: boolean) {
-    this.caseEl.classList.toggle("show", casing);
-    if (!c) { this.coachEl.classList.remove("show"); return; }
+  /** Locke talking himself through it: a short line beside him, with the button small next to it. */
+  speech(s: { x: number; y: number; text: string; glyph?: string } | null) {
+    if (!s) { this.coachEl.classList.remove("show"); return; }
+    this.coachEl.style.transform = `translate(${s.x}px, ${s.y}px)`;
+    const html = `<span class="say">${s.text}</span>${s.glyph ? `<kbd>${s.glyph}</kbd>` : ""}`;
+    if (this.coachEl.dataset.h !== html) {
+      this.coachEl.innerHTML = html; this.coachEl.dataset.h = html;
+      this.coachEl.classList.remove("show"); void this.coachEl.offsetWidth;
+    }
     this.coachEl.classList.add("show");
-    this.coachEl.style.transform = `translate(${c.x}px, ${c.y}px)`;
-    if (this.coachEl.dataset.h !== c.html) { this.coachEl.innerHTML = c.html; this.coachEl.dataset.h = c.html; }
   }
 
   private renderHint() {
