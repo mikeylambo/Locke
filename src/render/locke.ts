@@ -43,6 +43,10 @@ export class LockeView {
   readonly hatSparkle: THREE.Mesh;
   /** Swappable part slots (see lockeParts.ts / docs/locke-model-spec.md). */
   readonly slots: Partial<Record<Slot, THREE.Group>> = {};
+  private cigar!: THREE.Group;
+  private ember!: THREE.MeshBasicMaterial;
+  private smoke!: THREE.Points;
+  private tauntT = -1;
   private mood: Expression = "cool";
   private moodTimer = 0;
 
@@ -105,6 +109,15 @@ export class LockeView {
     this.slots.head = headParts.group;
     [this.browL, this.browR] = headParts.brows;
     this.mouths = headParts.mouths;
+    this.cigar = headParts.cigar;
+    this.ember = headParts.ember;
+    // Smoke curl for the taunt.
+    const n = 24;
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    this.smoke = new THREE.Points(sg, new THREE.PointsMaterial({ color: "#eae4da", size: 0.13, transparent: true, opacity: 0, depthWrite: false, sizeAttenuation: true }));
+    this.smoke.frustumCulled = false;
+    this.root.add(this.smoke);
     // Eyes hide behind the shades; the surprised take pops the glasses and shows them.
     for (const sx of [-1, 1]) {
       const white = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), m.white);
@@ -159,6 +172,10 @@ export class LockeView {
     this.shadow.renderOrder = 2;
     this.root.add(this.shadow);
   }
+
+  /** Taunt: a slow puff on the cigar, a curl of smoke, a grin. Purely cosmetic. */
+  taunt() { if (this.tauntT < 0) { this.tauntT = 0; this.react("grin", 2.4); } }
+  get taunting() { return this.tauntT >= 0; }
 
   /** Hold an expression for a while (cool is the resting face). */
   react(e: Expression, seconds: number) { this.mood = e; this.moodTimer = seconds; }
@@ -301,6 +318,27 @@ export class LockeView {
     const hatBody = v3(0.08, DIM.crownY * 1.8 + 0.04, 0.06).applyMatrix4(this.head.matrix).applyMatrix4(T);
     if (f.stretching) handTargets[0] = hatBody.clone().add(v3(0.05, 0.12, 0.02));
     if (f.celebrate >= 0 && f.celebrate < 1.1) handTargets[1] = hatBody.clone().add(v3(-0.16, 0.1 + Math.sin(Math.min(1, f.celebrate / 1.1) * Math.PI) * 0.13, 0.06));
+
+    // Taunt timeline: 0–0.5 hand up, 0.5–1.1 puff (ember flares), 1.1–2.4 smoke drifts.
+    if (this.tauntT >= 0) {
+      this.tauntT += dt;
+      const t = this.tauntT;
+      const mouth = v3(-0.03, DIM.headR * 0.5, DIM.headR * 1.3).applyMatrix4(this.head.matrix).applyMatrix4(T);
+      if (t < 1.3 && !f.stretching) handTargets[1] = handTargets[1]!.clone().lerp(mouth.add(v3(-0.06, -0.02, 0.04)), Math.sin(Math.min(1, t / 1.3) * Math.PI));
+      const puff = t > 0.5 && t < 1.1 ? Math.sin(((t - 0.5) / 0.6) * Math.PI) : 0;
+      this.ember.color.setRGB(2.2 + puff * 5, 0.7 + puff * 1.6, 0.2 + puff * 0.4);
+      const pos = this.smoke.geometry.attributes.position as THREE.BufferAttribute;
+      const mw = v3(-0.03 + 0.08, DIM.headR * 0.5, DIM.headR * 1.1).applyMatrix4(this.head.matrix).applyMatrix4(T);
+      for (let k = 0; k < pos.count; k++) {
+        const age = t - 1.0 - k * 0.035;
+        const a = Math.max(0, age);
+        pos.setXYZ(k, mw.x + Math.sin(a * 3 + k) * 0.04 * a, mw.y + a * 0.35, mw.z + Math.cos(a * 2.3 + k) * 0.04 * a + a * 0.05);
+      }
+      pos.needsUpdate = true;
+      (this.smoke.material as THREE.PointsMaterial).opacity = t > 1.0 ? Math.max(0, 0.85 * (1 - (t - 1.0) / 1.4)) : 0;
+      if (t > 2.4) this.tauntT = -1;
+    }
+    this.cigar.visible = !this.eyes.visible || this.tauntT >= 0;
 
     this.root.updateMatrixWorld(true);
     for (let i = 0; i < 2; i++) {

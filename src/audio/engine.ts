@@ -557,6 +557,13 @@ export class AudioEngine {
         this.play("shutter");
         break;
       }
+      case "puff": {
+        // A slow draw, then the exhale.
+        this.burst(900, 0.6, 0.45, 0.035, this.sfxBus, t + 0.45);
+        this.burst(1400, 0.5, 0.9, 0.05, this.sfxBus, t + 1.0);
+        this.hum("hum");
+        break;
+      }
       case "rewind": {
         const o = ctx.createOscillator(); o.type = "sawtooth";
         o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(180, t + 0.5);

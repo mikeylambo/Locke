@@ -15,9 +15,9 @@ export interface MenuItem {
 type Sound = (id: string) => void;
 
 const GLYPHS: Record<Device, Record<string, string>> = {
-  kbm: { move: "WASD", stretch: "Space", crouch: "C", flatten: "F", interact: "Click", rotate: "Q / E", rotL: "Q", rotR: "E", restart: "R", orbit: "Right-drag", cycle: "Tab", rewind: "T" },
-  pad: { move: "L", stretch: "RT", crouch: "B", flatten: "Y", interact: "A", rotate: "LB / RB", rotL: "LB", rotR: "RB", restart: "View", orbit: "R Stick", cycle: "X", rewind: "LT" },
-  touch: { move: "Drag", stretch: "Hand", crouch: "Crouch", flatten: "Flat", interact: "Use", rotate: "Twist", rotL: "⟲", rotR: "⟳", restart: "↺", orbit: "Two fingers", cycle: "", rewind: "" }
+  kbm: { move: "WASD", stretch: "Space", crouch: "C", flatten: "F", interact: "Click", rotate: "Q / E", rotL: "Q", rotR: "E", restart: "R", orbit: "Right-drag", cycle: "Tab", rewind: "T", taunt: "G" },
+  pad: { move: "L", stretch: "RT", crouch: "B", flatten: "Y", interact: "A", rotate: "LB / RB", rotL: "LB", rotR: "RB", restart: "View", orbit: "R Stick", cycle: "X", rewind: "LT", taunt: "D-pad ↑" },
+  touch: { move: "Drag", stretch: "Hand", crouch: "Crouch", flatten: "Flat", interact: "Use", rotate: "Twist", rotL: "⟲", rotR: "⟳", restart: "↺", orbit: "Two fingers", cycle: "", rewind: "", taunt: "Cigar" }
 };
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, html?: string) => {

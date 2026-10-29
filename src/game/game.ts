@@ -317,6 +317,7 @@ export class Game {
       if (this.mode === "play") {
         if (f.pause) { this.pause(); }
         else if (f.restart) { this.learn("restart"); this.restart(); }
+        if (f.taunt && !this.locke.taunting) { this.learn("taunt"); this.locke.taunt(); this.audio.play("puff"); const l = lineFor(this.room.id, "taunt-say"); if (l) this.audio.speak(l); this.tauntSay = 2.2; }
       }
       if (this.mode === "play" || this.mode === "results" || this.mode === "caught") {
         this.cameraInput(f);
@@ -340,6 +341,7 @@ export class Game {
     }
     if (this.celebrate >= 0) this.celebrate += dt;
     this.rewindCoach = Math.max(0, this.rewindCoach - dt);
+    this.tauntSay = Math.max(0, this.tauntSay - dt);
 
 
     this.present(dt, reduced);
@@ -362,6 +364,7 @@ export class Game {
   private rewindCoach = 0;
   private lastSpoken: string | null = null;
   private lastSheen = -999;
+  private tauntSay = 0;
 
   private cameraInput(f: InputFrame) {
     if (f.orbit.dx || f.orbit.dy) this.stage.orbit(-f.orbit.dx, f.orbit.dy);
@@ -498,6 +501,7 @@ export class Game {
   /** Which line Locke should be saying right now (one at a time; each retires once its move is used). */
   private speechTrigger(): string | null {
     const r = this.run, L = r.locke;
+    if (this.tauntSay > 0) return "taunt-say";
     const tutorial = isTutorial(this.room.id);
     if (this.rewindCoach > 0) return !this.learned.has("restart") ? "fumble" : !this.learned.has("rewind") && tutorial ? "rewind" : null;
     if (r.phase === "case" && !this.learned.has("orbit")) return "orbit";
@@ -508,6 +512,7 @@ export class Game {
     if (thinGap && L.pose !== "flatten" && !this.learned.has("flatten")) return "flatten";
     if (L.pose === "flatten" && !this.learned.has("sidle")) return "sidle";
     if (r.canGrabPrize() && !this.learned.has("lift")) return "lift";
+    if (L.hasPrize && !this.learned.has("taunt")) return "taunt";
     if (!r.prizeLifted && !L.stretch.active && !r.canGrabPrize() && !this.learned.has("stretch") && dist(L.pos, r.prizePos) < STRETCH_MAX + 0.6) return "stretch";
     // At a mount the mirror is the point; the crouch can wait.
     const target = r.targetMount();

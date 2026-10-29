@@ -88,7 +88,7 @@ export function buildTorso(m: LockeMats): THREE.Group {
   return g;
 }
 
-export interface HeadParts { group: THREE.Group; brows: [THREE.Mesh, THREE.Mesh]; mouths: Record<Expression, THREE.Object3D> }
+export interface HeadParts { group: THREE.Group; brows: [THREE.Mesh, THREE.Mesh]; mouths: Record<Expression, THREE.Object3D>; cigar: THREE.Group; ember: THREE.MeshBasicMaterial }
 
 export function buildHead(m: LockeMats): HeadParts {
   const g = new THREE.Group();
@@ -128,6 +128,21 @@ export function buildHead(m: LockeMats): HeadParts {
   oMouth.scale.set(0.8, 1.25, 1); oMouth.position.y = -0.008;
   const serious = new THREE.Mesh(new THREE.CapsuleGeometry(0.005, 0.034, 4, 8), m.mouth);
   serious.rotation.z = Math.PI / 2;
+  // The cigar, parked in the corner of the smirk (from the sheet). Ember brightens on a puff.
+  const cigar = new THREE.Group();
+  cigar.name = "cigar";
+  const leaf = toonMaterial({ color: "#5b3a22", shade: "#2e1c10", gloss: 0.2 });
+  const stick = inked(new THREE.CylinderGeometry(0.0085, 0.0095, 0.085, 10), leaf, 0.003);
+  stick.rotation.z = Math.PI / 2; stick.position.x = 0.042;
+  const bandRing = new THREE.Mesh(new THREE.CylinderGeometry(0.0098, 0.0098, 0.009, 10), m.goldFlat);
+  bandRing.rotation.z = Math.PI / 2; bandRing.position.x = 0.016;
+  const emberMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 0.7, 0.2), toneMapped: false });
+  const ember = new THREE.Mesh(new THREE.SphereGeometry(0.009, 10, 8), emberMat);
+  ember.name = "ember"; ember.position.x = 0.086;
+  cigar.add(stick, bandRing, ember);
+  cigar.position.set(-0.03, R * 0.5, R * 0.93);
+  cigar.rotation.set(0, -0.55, -0.18);
+  g.add(cigar);
   const mouths: Record<Expression, THREE.Object3D> = { cool: mouthAt(cool), grin: mouthAt(grinG), surprised: mouthAt(oMouth), serious: mouthAt(serious) };
   for (const e of EXPRESSIONS) mouths[e].visible = e === "cool";
   const browGeo = new THREE.CapsuleGeometry(0.008, 0.04, 4, 8);
@@ -135,7 +150,7 @@ export function buildHead(m: LockeMats): HeadParts {
   const bl = new THREE.Mesh(browGeo, m.beard), br = new THREE.Mesh(browGeo, m.beard);
   bl.position.set(0.045, R * 1.58, R * 0.84); br.position.set(-0.045, R * 1.58, R * 0.84);
   g.add(bl, br);
-  return { group: g, brows: [bl, br], mouths };
+  return { group: g, brows: [bl, br], mouths, cigar, ember: emberMat };
 }
 
 export function buildGlasses(m: LockeMats): THREE.Group {

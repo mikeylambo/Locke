@@ -7,24 +7,24 @@ export interface InputFrame {
   move: { x: number; y: number };
   stretch: boolean;
   crouch: boolean; flatten: boolean; interact: boolean; rotate: number; cycle: boolean;
-  restart: boolean; pause: boolean; rewind: boolean;
+  restart: boolean; pause: boolean; rewind: boolean; taunt: boolean;
   orbit: { dx: number; dy: number }; orbiting: boolean; snap: number;
   ui: { up: boolean; down: boolean; left: boolean; right: boolean; confirm: boolean; back: boolean };
   any: boolean;
 }
 
-const ACTIONS = ["rewind", "stretch", "crouch", "flatten", "interact", "rotL", "rotR", "cycle", "restart", "pause", "uiUp", "uiDown", "uiLeft", "uiRight", "uiConfirm", "uiBack", "snapL", "snapR"] as const;
+const ACTIONS = ["taunt", "rewind", "stretch", "crouch", "flatten", "interact", "rotL", "rotR", "cycle", "restart", "pause", "uiUp", "uiDown", "uiLeft", "uiRight", "uiConfirm", "uiBack", "snapL", "snapR"] as const;
 type Action = (typeof ACTIONS)[number];
 
 const KEYS: Record<Action, string[]> = {
-  rewind: ["Backspace", "KeyT"], stretch: ["Space"], crouch: ["KeyC", "ControlLeft"], flatten: ["KeyF"], interact: ["Enter", "KeyX"], rotL: ["KeyQ"], rotR: ["KeyE"],
+  taunt: ["KeyG"], rewind: ["Backspace", "KeyT"], stretch: ["Space"], crouch: ["KeyC", "ControlLeft"], flatten: ["KeyF"], interact: ["Enter", "KeyX"], rotL: ["KeyQ"], rotR: ["KeyE"],
   cycle: ["Tab"], restart: ["KeyR"], pause: ["Escape", "KeyP"],
   uiUp: ["ArrowUp", "KeyW"], uiDown: ["ArrowDown", "KeyS"], uiLeft: ["ArrowLeft", "KeyA"], uiRight: ["ArrowRight", "KeyD"],
   uiConfirm: ["Enter", "Space"], uiBack: ["Escape", "Backspace"], snapL: ["KeyZ"], snapR: ["KeyV"]
 };
 // Standard gamepad mapping.
 const PAD: Partial<Record<Action, number[]>> = {
-  rewind: [6], stretch: [7], crouch: [1], flatten: [3], interact: [0], rotL: [4], rotR: [5], cycle: [2], restart: [8], pause: [9],
+  taunt: [12], rewind: [6], stretch: [7], crouch: [1], flatten: [3], interact: [0], rotL: [4], rotR: [5], cycle: [2], restart: [8], pause: [9],
   uiUp: [12], uiDown: [13], uiLeft: [14], uiRight: [15], uiConfirm: [0], uiBack: [1]
 };
 
@@ -83,6 +83,7 @@ export class Input {
         <button data-b="rotR" class="t-btn t-rr" aria-label="Rotate right">${ICON.rotR}</button>
       </div>
       <div class="t-top">
+        <button data-b="taunt" class="t-btn t-small" aria-label="Taunt">${ICON.cigar}</button>
         <button data-b="rewind" class="t-btn t-small" aria-label="Rewind">${ICON.rewind}</button>
         <button data-b="restart" class="t-btn t-small" aria-label="Restart">${ICON.restart}</button>
         <button data-b="pause" class="t-btn t-small" aria-label="Pause">${ICON.pause}</button>
@@ -210,13 +211,13 @@ export class Input {
     if (p("snapL")) snap = -1;
     if (p("snapR")) snap = 1;
     const any = ACTIONS.some((a) => p(a)) || Math.hypot(mx, my) > 0.3;
-    if (!this.enabled) return { move: { x: 0, y: 0 }, stretch: false, crouch: false, flatten: false, interact: false, rotate: 0, cycle: false, restart: false, pause: p("pause"), rewind: false, orbit: { dx: 0, dy: 0 }, orbiting: false, snap: 0, ui: { up: p("uiUp"), down: p("uiDown"), left: p("uiLeft"), right: p("uiRight"), confirm: p("uiConfirm"), back: p("uiBack") }, any };
+    if (!this.enabled) return { move: { x: 0, y: 0 }, stretch: false, crouch: false, flatten: false, interact: false, rotate: 0, cycle: false, restart: false, pause: p("pause"), rewind: false, taunt: false, orbit: { dx: 0, dy: 0 }, orbiting: false, snap: 0, ui: { up: p("uiUp"), down: p("uiDown"), left: p("uiLeft"), right: p("uiRight"), confirm: p("uiConfirm"), back: p("uiBack") }, any };
     return {
       move: { x: mx, y: my },
       stretch: d("stretch"),
       crouch: p("crouch"), flatten: p("flatten"), interact: p("interact"),
       rotate: (p("rotR") ? 1 : 0) - (p("rotL") ? 1 : 0), cycle: p("cycle"),
-      restart: p("restart"), pause: p("pause"), rewind: d("rewind"),
+      restart: p("restart"), pause: p("pause"), rewind: d("rewind"), taunt: p("taunt"),
       orbit: { dx: odx * this.sensitivity, dy: ody * this.sensitivity }, orbiting, snap,
       ui: { up: p("uiUp"), down: p("uiDown"), left: p("uiLeft"), right: p("uiRight"), confirm: p("uiConfirm"), back: p("uiBack") },
       any
@@ -241,6 +242,7 @@ export const ICON = {
   restart: svg("M12 24a12 12 0 1 0 4-9M12 8v8h8"),
   pause: svg("M18 12v24M30 12v24"),
   rewind: svg("M24 14L10 24l14 10zM38 14L24 24l14 10z"),
+  cigar: svg("M6 30h30v6H6zM36 30h6v6h-6M40 24c0-4 4-4 4-8M34 22c0-3 3-4 3-7"),
   mirror: svg("M24 6c7 0 10 7 10 16s-3 16-10 16-10-7-10-16S17 6 24 6zM24 38v6M16 44h16M19 14l4-3"),
   retro: svg("M24 10l12 20H12zM24 10v-4M18 24l6-4 6 4"),
   splitter: svg("M12 12h24v24H12zM12 12l24 24"),
