@@ -1,7 +1,11 @@
 {
-  "_doc": "Parts listed here replace the procedural slot of the same name. 'bust' is a set of hatless heads keyed by expression (cool, grin, surprised, serious); missing expressions fall back to cool. All busts and the hat share one frame: origin at the centre of the hat brim's underside.",
+  "_doc": "Parts listed here replace the procedural slot of the same name. 'bust' is a set of hatless heads keyed by expression (cool, grin, surprised, serious); missing expressions fall back to cool. All busts and the hat share one frame: origin at the centre of the hat brim's underside. 'torso' is armless (origin = pelvis centre); the procedural crown pin and watch chain ride on its front.",
   "parts": {
-    "bust": { "cool": "bust-cool.glb", "grin": "bust-grin.glb", "surprised": "bust-surprised.glb" },
+    "bust": {
+      "cool": "bust-cool.glb",
+      "grin": "bust-grin.glb",
+      "surprised": "bust-surprised.glb"
+    },
     "hat": "hat.glb"
   }
 }

@@ -179,13 +179,14 @@ export class LockeView {
 
   private busts: Partial<Record<Expression, THREE.Group>> = {};
   private hatBase = DIM.crownY * 1.8;
+  private chainZ = 0;
 
   /**
    * manifest "bust": hatless sculpted heads per expression, plus a separate "hat". They share one frame
    * (origin = underside of the hat brim), so the hat rides its own lagging pivot like the procedural one.
    */
   private async loadBust(procHead: THREE.Group, neck: THREE.Object3D) {
-    let parts: { bust?: Partial<Record<Expression, string>>; hat?: string } | undefined;
+    let parts: { bust?: Partial<Record<Expression, string>>; hat?: string; torso?: string } | undefined;
     try { const r = await fetch("/models/locke/manifest.json"); if (!r.ok) return; parts = (await r.json())?.parts; } catch { return; }
     if (!parts?.bust?.cool) return;
     const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
@@ -223,6 +224,18 @@ export class LockeView {
         this.hat.visible = false;
         this.hatPivot.add(hat);
         this.slots.hat = hat;
+      }
+      if (parts.torso) {
+        // Armless jacket, 0.438 units collar-to-hem in model space → the rig's 0.6 m torso.
+        const torso = await load(parts.torso);
+        torso.scale.setScalar(0.6 / 0.438);
+        const slot = this.slots.torso!;
+        const pin = slot.getObjectByName("crown_pin");
+        slot.visible = false;
+        this.torso.add(torso);
+        if (pin) { this.torso.add(pin); pin.position.z = 0.1; }
+        this.chainZ = -0.045;
+        this.slots.torso = torso;
       }
     } catch { return; }
     this.hatBase = BASE;
@@ -328,7 +341,8 @@ export class LockeView {
     this.tailR.rotation.x = tail + Math.sin(this.time * 9 + 1.3) * 0.04 * walkW;
     const sag = this.chainSag.step(0.035 + walkW * 0.01, dt);
     this.chainSag.kick(-hv * dt * 3);
-    this.chain.bezier(v3(0, 0.3, 0.14), v3(0.03, 0.3 - sag * 1.6, 0.152), v3(0.09, 0.24 - sag, 0.14), v3(0.12, 0.22, 0.1), 0.005, 0.005);
+    const cz = this.chainZ;
+    this.chain.bezier(v3(0, 0.3, 0.14 + cz), v3(0.03, 0.3 - sag * 1.6, 0.152 + cz), v3(0.09, 0.24 - sag, 0.14 + cz), v3(0.12, 0.22, 0.1 + cz), 0.005, 0.005);
 
     this.torso.updateMatrix();
     this.head.updateMatrix();

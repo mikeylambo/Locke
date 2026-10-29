@@ -226,8 +226,8 @@ export function buildShoe(m: LockeMats, sx: number): THREE.Group {
 export async function applyModelOverrides(slots: Partial<Record<Slot, THREE.Group>>, base = "/models/locke/"): Promise<Slot[]> {
   let manifest: { parts?: Partial<Record<Slot, string>> };
   try { const res = await fetch(base + "manifest.json"); if (!res.ok) return []; manifest = await res.json(); } catch { return []; }
-  // "bust" is handled by the rig itself (it replaces three slots at once).
-  const entries = (Object.entries(manifest.parts ?? {}) as Array<[Slot, string]>).filter(([k]) => k !== "bust");
+  // bust, hat and torso are fitted by the rig itself (scale, pivots, toon shading).
+  const entries = (Object.entries(manifest.parts ?? {}) as Array<[Slot, string]>).filter(([k]) => k !== "bust" && k !== "hat" && k !== "torso");
   if (!entries.length) return [];
   const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
   const loader = new GLTFLoader();
