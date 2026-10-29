@@ -509,14 +509,15 @@ export class Game {
     if (L.pose === "flatten" && !this.learned.has("sidle")) return "sidle";
     if (r.canGrabPrize() && !this.learned.has("lift")) return "lift";
     if (!r.prizeLifted && !L.stretch.active && !r.canGrabPrize() && !this.learned.has("stretch") && dist(L.pos, r.prizePos) < STRETCH_MAX + 0.6) return "stretch";
+    // At a mount the mirror is the point; the crouch can wait.
+    const target = r.targetMount();
+    if (target && !this.learned.has("place") && r.beltKind && !r.optics.some((o) => o.mountId === target)) return "place";
+    if (target && !this.learned.has("rotate") && r.optics.some((o) => o.mountId === target)) return "rotate";
     if (L.pose === "stand" && !this.learned.has("crouch")) {
       const high = r.frame.segments.some((sg) => sg.live && sg.band === "high" && pointSegDist(L.pos, sg.a, sg.b) < 1.0);
       const other = r.frame.segments.some((sg) => sg.live && sg.band !== "high" && pointSegDist(L.pos, sg.a, sg.b) < 1.0);
       if (high && !other) return "crouch";
     }
-    const target = r.targetMount();
-    if (target && !this.learned.has("place") && r.beltKind && !r.optics.some((o) => o.mountId === target)) return "place";
-    if (target && !this.learned.has("rotate") && r.optics.some((o) => o.mountId === target)) return "rotate";
     return null;
   }
 
