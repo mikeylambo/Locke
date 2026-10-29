@@ -177,35 +177,58 @@ export class LockeView {
   /** True when a sculpted bust (Meshy) is standing in for the procedural head, hat and glasses. */
   bustLoaded = false;
 
-  /** manifest "bust": one mesh covering head + hat + glasses. Toon-shaded and inked to match the rig. */
+  private busts: Partial<Record<Expression, THREE.Group>> = {};
+  private hatBase = DIM.crownY * 1.8;
+
+  /**
+   * manifest "bust": hatless sculpted heads per expression, plus a separate "hat". They share one frame
+   * (origin = underside of the hat brim), so the hat rides its own lagging pivot like the procedural one.
+   */
   private async loadBust(procHead: THREE.Group, neck: THREE.Object3D) {
-    let file: string | undefined;
-    try { const r = await fetch("/models/locke/manifest.json"); if (!r.ok) return; file = (await r.json())?.parts?.bust; } catch { return; }
-    if (!file) return;
+    let parts: { bust?: Partial<Record<Expression, string>>; hat?: string } | undefined;
+    try { const r = await fetch("/models/locke/manifest.json"); if (!r.ok) return; parts = (await r.json())?.parts; } catch { return; }
+    if (!parts?.bust?.cool) return;
     const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
-    let scene: THREE.Group;
-    try { scene = (await new GLTFLoader().loadAsync("/models/locke/" + file)).scene; } catch { return; }
-    const bust = new THREE.Group();
-    bust.name = "slot_bust";
-    scene.traverse((o) => {
-      const m = o as THREE.Mesh;
-      if (!m.isMesh) return;
-      const src = m.material as THREE.MeshStandardMaterial;
-      const toon = new THREE.MeshToonMaterial({ map: src.map ?? null, color: "#ffffff" });
-      if (toon.map) toon.map.colorSpace = THREE.SRGBColorSpace;
-      const geo = m.geometry.clone();
-      geo.applyMatrix4(m.matrixWorld);
-      bust.add(inked(geo, toon, 0.006));
-    });
-    // Model space: collar at y −0.48, hat crown at +0.48, facing +Z. Neck base sits near y −0.15.
-    const S = 0.58;
-    bust.scale.setScalar(S);
-    bust.position.set(0, 0.15 * S, 0.0);
-    this.head.add(bust);
-    this.slots.bust = bust;
+    const loader = new GLTFLoader();
+    const S = 0.58, BASE = 0.133;
+    const load = async (file: string) => {
+      const scene = (await loader.loadAsync("/models/locke/" + file)).scene;
+      const g = new THREE.Group();
+      scene.updateMatrixWorld(true);
+      scene.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        const src = m.material as THREE.MeshStandardMaterial;
+        const toon = new THREE.MeshToonMaterial({ map: src.map ?? null });
+        if (toon.map) toon.map.colorSpace = THREE.SRGBColorSpace;
+        const geo = m.geometry.clone();
+        geo.applyMatrix4(m.matrixWorld);
+        g.add(inked(geo, toon, 0.006));
+      });
+      g.scale.setScalar(S);
+      return g;
+    };
+    try {
+      for (const [e, file] of Object.entries(parts.bust) as Array<[Expression, string]>) {
+        const g = await load(file);
+        g.name = `slot_bust_${e}`;
+        g.position.set(0, BASE, 0);
+        g.visible = e === "cool";
+        this.head.add(g);
+        this.busts[e] = g;
+      }
+      if (parts.hat) {
+        const hat = await load(parts.hat);
+        hat.name = "slot_hat_mesh";
+        this.hat.visible = false;
+        this.hatPivot.add(hat);
+        this.slots.hat = hat;
+      }
+    } catch { return; }
+    this.hatBase = BASE;
+    this.slots.bust = this.busts.cool;
     procHead.visible = false;
     neck.visible = false;
-    this.hat.visible = false;
     this.glasses.visible = false;
     this.cigar.visible = false;
     this.eyes.visible = false;
@@ -273,6 +296,7 @@ export class LockeView {
     if (take >= 0 || f.caught) mood = "surprised";
     else if (f.celebrate >= 0 || f.smug) mood = "grin";
     for (const k of Object.keys(this.mouths) as Expression[]) this.mouths[k].visible = k === mood;
+    if (this.bustLoaded) { const show = this.busts[mood] ? mood : "cool"; for (const [k, g] of Object.entries(this.busts)) g!.visible = k === show; }
     const browT = mood === "surprised" ? 0.035 : mood === "grin" ? 0.012 : mood === "serious" ? -0.01 : 0;
     const br = this.brow.step(browT, dt);
     const by = DIM.headR * 1.58;
@@ -292,7 +316,7 @@ export class LockeView {
       hatTip = Math.sin(c * Math.PI);
       hatOff += hatTip * 0.13;
     }
-    this.hatPivot.position.y = DIM.crownY * 1.8 + hatOff;
+    this.hatPivot.position.y = this.hatBase + hatOff;
     this.hatPivot.rotation.x = this.hatTilt.step(-this.lean.x * 0.3 + walkW * 0.08, dt) - hatTip * 0.5;
     this.hat.rotation.z = 0.14 + Math.sin(this.time * 1.3) * 0.01;
     this.hatSparkle.visible = f.hasPrize;

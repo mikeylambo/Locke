@@ -1,4 +1,7 @@
 {
-  "_doc": "Parts listed here replace the procedural slot of the same name. 'bust' replaces head + hat + glasses together (a single Meshy bust).",
-  "parts": { "bust": "head.glb" }
+  "_doc": "Parts listed here replace the procedural slot of the same name. 'bust' is a set of hatless heads keyed by expression (cool, grin, surprised, serious); missing expressions fall back to cool. All busts and the hat share one frame: origin at the centre of the hat brim's underside.",
+  "parts": {
+    "bust": { "cool": "bust-cool.glb", "grin": "bust-grin.glb", "surprised": "bust-surprised.glb" },
+    "hat": "hat.glb"
+  }
 }
