@@ -158,6 +158,7 @@ export class LockeView {
     this.slots.glove_L = this.gloves[0]; this.slots.glove_R = this.gloves[1];
     this.slots.shoe_L = this.shoes[0]; this.slots.shoe_R = this.shoes[1];
     void applyModelOverrides(this.slots);
+    void this.loadBust(headParts.group, neck);
 
     // Contact shadow.
     const sc = document.createElement("canvas");
@@ -171,6 +172,44 @@ export class LockeView {
     this.shadow.position.y = 0.01;
     this.shadow.renderOrder = 2;
     this.root.add(this.shadow);
+  }
+
+  /** True when a sculpted bust (Meshy) is standing in for the procedural head, hat and glasses. */
+  bustLoaded = false;
+
+  /** manifest "bust": one mesh covering head + hat + glasses. Toon-shaded and inked to match the rig. */
+  private async loadBust(procHead: THREE.Group, neck: THREE.Object3D) {
+    let file: string | undefined;
+    try { const r = await fetch("/models/locke/manifest.json"); if (!r.ok) return; file = (await r.json())?.parts?.bust; } catch { return; }
+    if (!file) return;
+    const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+    let scene: THREE.Group;
+    try { scene = (await new GLTFLoader().loadAsync("/models/locke/" + file)).scene; } catch { return; }
+    const bust = new THREE.Group();
+    bust.name = "slot_bust";
+    scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const src = m.material as THREE.MeshStandardMaterial;
+      const toon = new THREE.MeshToonMaterial({ map: src.map ?? null, color: "#ffffff" });
+      if (toon.map) toon.map.colorSpace = THREE.SRGBColorSpace;
+      const geo = m.geometry.clone();
+      geo.applyMatrix4(m.matrixWorld);
+      bust.add(inked(geo, toon, 0.006));
+    });
+    // Model space: collar at y −0.48, hat crown at +0.48, facing +Z. Neck base sits near y −0.15.
+    const S = 0.58;
+    bust.scale.setScalar(S);
+    bust.position.set(0, 0.15 * S, 0.0);
+    this.head.add(bust);
+    this.slots.bust = bust;
+    procHead.visible = false;
+    neck.visible = false;
+    this.hat.visible = false;
+    this.glasses.visible = false;
+    this.cigar.visible = false;
+    this.eyes.visible = false;
+    this.bustLoaded = true;
   }
 
   /** Taunt: a slow puff on the cigar, a curl of smoke, a grin. Purely cosmetic. */
@@ -242,7 +281,7 @@ export class LockeView {
     this.browR.rotation.z = mood === "serious" ? 0.3 : -0.08;
     const pop = this.pop.step(mood === "surprised" ? 0.05 : 0, dt);
     this.glasses.position.y = pop;
-    this.eyes.visible = pop > 0.012;
+    this.eyes.visible = !this.bustLoaded && pop > 0.012;
 
     // Hat: lags a beat, flies on a take.
     const hatLift = this.hatY.step(0, dt) + -ha * 0.00025;
@@ -338,7 +377,7 @@ export class LockeView {
       (this.smoke.material as THREE.PointsMaterial).opacity = t > 1.0 ? Math.max(0, 0.85 * (1 - (t - 1.0) / 1.4)) : 0;
       if (t > 2.4) this.tauntT = -1;
     }
-    this.cigar.visible = !this.eyes.visible || this.tauntT >= 0;
+    if (!this.bustLoaded) this.cigar.visible = !this.eyes.visible || this.tauntT >= 0;
 
     this.root.updateMatrixWorld(true);
     for (let i = 0; i < 2; i++) {

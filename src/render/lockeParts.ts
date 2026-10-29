@@ -10,7 +10,7 @@ import { inked, toonMaterial } from "./toon";
 export type Expression = "cool" | "grin" | "surprised" | "serious";
 export const EXPRESSIONS: Expression[] = ["cool", "grin", "surprised", "serious"];
 
-export const SLOTS = ["torso", "head", "hat", "glasses", "glove_L", "glove_R", "shoe_L", "shoe_R"] as const;
+export const SLOTS = ["torso", "head", "hat", "glasses", "glove_L", "glove_R", "shoe_L", "shoe_R", "bust"] as const;
 export type Slot = (typeof SLOTS)[number];
 
 /** Attach points: where each slot's origin sits (metres, parent space). */
@@ -226,7 +226,8 @@ export function buildShoe(m: LockeMats, sx: number): THREE.Group {
 export async function applyModelOverrides(slots: Partial<Record<Slot, THREE.Group>>, base = "/models/locke/"): Promise<Slot[]> {
   let manifest: { parts?: Partial<Record<Slot, string>> };
   try { const res = await fetch(base + "manifest.json"); if (!res.ok) return []; manifest = await res.json(); } catch { return []; }
-  const entries = Object.entries(manifest.parts ?? {}) as Array<[Slot, string]>;
+  // "bust" is handled by the rig itself (it replaces three slots at once).
+  const entries = (Object.entries(manifest.parts ?? {}) as Array<[Slot, string]>).filter(([k]) => k !== "bust");
   if (!entries.length) return [];
   const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
   const loader = new GLTFLoader();

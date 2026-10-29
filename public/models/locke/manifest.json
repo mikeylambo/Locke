@@ -1,1 +1,4 @@
-{ "parts": {} }
+{
+  "_doc": "Parts listed here replace the procedural slot of the same name. 'bust' replaces head + hat + glasses together (a single Meshy bust).",
+  "parts": { "bust": "head.glb" }
+}
