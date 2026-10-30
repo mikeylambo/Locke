@@ -197,7 +197,9 @@ export class Game {
 
   private loadRoom(def: RoomDef) {
     this.room = def;
-    this.stage.setDist(15 * Math.max(def.size.w / 12, def.size.d / 9, 0.62));
+    const side = def.view === "side";
+    this.stage.lockSide(side);
+    this.stage.setDist(side ? 15 * Math.max(def.size.w / 13, def.size.d / 7.5, 0.62) : 15 * Math.max(def.size.w / 12, def.size.d / 9, 0.62) * (def.floors && def.floors > 1 ? 1.12 : 1));
     this.audio.setRoom(def);
     this.rebuildRoom();
     this.newRun();
@@ -212,6 +214,7 @@ export class Game {
     this.prize = new PrizeView(this.room);
     this.optics = new OpticsView(this.room);
     this.stage.scene.add(this.roomView.group, this.prize.group, this.prize.causticObject, this.optics.group);
+    this.beams.space = this.roomView.space;
   }
 
   private newRun() {
@@ -224,6 +227,35 @@ export class Game {
     this.resultsTimer = -1;
     this.photo = undefined;
     this.prize.group.position.copy(this.prize.restPos);
+    this.quipSaid.clear();
+    this.quipT = 0;
+    this.wasFlat = false;
+    // The feather gag carries across the night.
+    if (this.learned.has("feather-lost") && !this.learned.has("feather-back")) this.locke.dropFeather();
+    else if (!this.locke.hasFeather) this.locke.restoreFeather();
+    for (const f of this.roomView.statueFeathers) f.visible = this.learned.has("feather-lost") && !this.learned.has("feather-back");
+  }
+
+  private wasFlat = false;
+  private penTick = -1;
+  /** Per-frame comedy beats that don't come from a single sim event. */
+  private momentsFrame() {
+    const r = this.run, L = r.locke;
+    if (r.phase === "case" && this.time > 0.5) this.quip("entry", 3.2);
+    // The pendulum ticks at each end of its swing: the room's metronome.
+    const pen = this.room.emitters.find((x) => x.type === "pendulum");
+    if (pen) {
+      const half = ((r.prizeLifted && pen.out?.swing ? pen.out.swing : pen.swing)?.period ?? 2) / 2;
+      const k = Math.floor((r.beat + half / 2) / half);
+      if (k !== this.penTick) { if (this.penTick !== -1) this.audio.play("pendulum"); this.penTick = k; }
+    }
+    if (L.stretch.active && !r.side && L.stretch.length >= STRETCH_MAX - 0.02) this.quip("overshoot", 2.2);
+    if (this.wasFlat && L.pose !== "flatten") { this.locke.boing(0.7); this.quip("peel", 2.0); }
+    this.wasFlat = L.pose === "flatten";
+    // Funhouse mirrors: catch sight of himself in warped glass.
+    if (r.optics.some((o) => (o.kind === "concave" || o.kind === "convex") && dist(L.pos, this.room.mounts.find((m) => m.id === o.mountId)!) < 1.3)) this.quip("reflection", 2.6);
+    // Portraits and statues: anything in the room's "watchers" list.
+    if (this.room.blocks.some((b) => b.style === "statue" && dist(L.pos, b) < 1.6) && this.roomView.statueFeathers.some((f) => f.visible)) this.quip("statue-see", 2.4);
   }
 
   private toTitle(fromPress = false) {
@@ -263,6 +295,22 @@ export class Game {
       return;
     }
     this.startPlay();
+  }
+
+  /** Escaping a room with a `next` hands straight into its getaway set piece; the newspaper waits for the end. */
+  private chainFrom: { room: RoomDef; stats: { time: number; alarms: number; clearance: number; value: number }; rewinds: number } | null = null;
+  private async chainTo(id: string) {
+    this.chainFrom = { room: this.room, stats: { ...this.run.stats }, rewinds: this.rewinds };
+    this.audio.play("escaped");
+    this.ui.flash("escape");
+    this.mode = "results";
+    const def = await loadRoom(id);
+    const keep = this.chainFrom;
+    this.loadRoom(def);
+    this.chainFrom = keep;
+    this.startPlay();
+    this.rewinds = keep.rewinds;
+    this.ui.toast("The getaway");
   }
 
   private startPlay() {
@@ -352,7 +400,10 @@ export class Game {
           this.stepSim(this.mode === "play" ? this.simInput(f) : emptyInput(), dt);
         }
       }
-      this.stage.focus(this.run.locke.pos.x, this.run.locke.pos.z, 0.3);
+      const Lk = this.run.locke;
+      if (this.room.view === "side") this.stage.focus(Lk.pos.x, 0, 0.55, this.room.size.d / 2 - Lk.pos.z + 0.7);
+      else this.stage.focus(Lk.pos.x, Lk.pos.z, 0.3, 0.4 + this.roomView.space.floorY(Lk.floor) + (Lk.raised ? 0.45 : 0));
+      this.stage.overhead(this.run.obscura);
     } else if (this.mode === "paused") {
       // Frozen; still allow looking around.
       this.cameraInput(f);
@@ -366,6 +417,8 @@ export class Game {
     if (this.celebrate >= 0) this.celebrate += dt;
     this.rewindCoach = Math.max(0, this.rewindCoach - dt);
     this.tauntSay = Math.max(0, this.tauntSay - dt);
+    this.quipT = Math.max(0, this.quipT - dt);
+    if (this.mode === "play") this.momentsFrame();
 
 
     this.present(dt, reduced);
@@ -470,13 +523,16 @@ export class Game {
     if (e.type === "run.start") this.learn("move");
     if (e.type === "stretch.start" && !e.auto) this.learn("stretch");
     if (e.type === "pose") this.learn(e.pose);
-    if (e.type === "optic.place") this.learn("place");
+    if (e.type === "optic.place") { this.learn("place"); if (e.kind === "splitter") this.audio.play("splitter"); }
     if (e.type === "optic.rotate") this.learn("rotate");
     if (e.type === "lift") this.learn("lift");
     const pan = this.panOf(L.pos.x, L.pos.z);
     switch (e.type) {
       case "step": this.audio.play("step", { pan }); break;
       case "contact": {
+        this.lastContactAt = this.time;
+        if (e.threat >= 2) this.quip("alarm", 2.0);
+        else this.quip("contact", 1.8);
         if (!this.learned.has("restart") || (isTutorial(this.room.id) && !this.learned.has("rewind"))) this.rewindCoach = 4;
         this.locke.react("surprised", 1.2);
         this.audio.play("contact", { pan });
@@ -491,6 +547,8 @@ export class Game {
         break;
       }
       case "lift":
+        if (this.run.threat === 0) this.quip("clean", 2.4);
+        if (this.room.emitters.some((x) => x.type === "projector" && x.out)) setTimeout(() => this.audio.play("projector.freeze"), 500);
         this.locke.react("grin", 2.2);
         this.audio.play("lift");
         this.prize.burst();
@@ -502,6 +560,9 @@ export class Game {
       case "stretch.snap": this.locke.boing(this.run.locke.hasPrize ? 1.3 : 1); this.audio.play("stretch.snap", { pan }); break;
       case "sensor.fed": this.audio.play("sensor.fed"); this.ui.flash("solve"); break;
       case "escaped":
+        if (this.locke.hasFeather && this.room.emitters.some((x) => x.type === "pendulum")) { this.locke.clipFeather(); this.learn("feather-lost"); }
+        if (this.room.next) { void this.chainTo(this.room.next); break; }
+        this.quip("getaway", 2.0);
         this.audio.play("escaped");
         this.ui.flash("escape");
         this.celebrate = 0;
@@ -518,16 +579,79 @@ export class Game {
       case "restart":
         if (this.mode === "caught") this.restart();
         break;
-      case "nearMiss": this.beams.sizzle.set(e.emitter, 0.35); this.audio.play("sizzle", { pan }); break;
+      case "nearMiss": this.beams.sizzle.set(e.emitter, 0.35); this.audio.play("sizzle", { pan }); this.onNearMiss(e.emitter); break;
+      case "optic.rotate": this.audio.play("optic.rotate", { pan }); this.optics.flash(e.mountId); break;
+      case "plate.down": this.audio.play("plate", { pan }); break;
+      case "plate.up": this.audio.play("plate.up", { pan }); break;
+      case "shutter.open": this.audio.play("gate.open", { pan }); this.stage.kick(0.15); this.ui.flash("solve"); break;
+      case "shutter.close": this.audio.play("gate.close", { pan }); this.stage.kick(0.3); break;
+      case "stairs": this.audio.play("step", { pan }); this.audio.play("stairs", { pan }); break;
+      case "obscura": this.audio.play(e.on ? "obscura.open" : "obscura.close"); if (e.on) this.learn("obscura"); break;
+      case "stepUp": if (e.on) { this.audio.play("step", { pan }); this.locke.boing(0.5); } break;
+      case "rope.hook": this.audio.play("hook", { pan }); this.locke.boing(0.4); break;
+      case "rope.letgo": this.locke.react("surprised", 1.1); this.audio.play("letgo", { pan }); this.quip("letgo", 2.6); break;
+      case "rope.yank": this.audio.play("yank", { pan }); this.locke.react("surprised", 0.6); this.quip("yank", 2.2); break;
+      case "land": this.locke.boing(Math.min(1.6, e.speed / 4)); this.audio.play("land", { pan }); this.stage.kick(Math.min(0.5, e.speed / 12)); if (e.speed > 4.5) this.quip("land", 2.0); break;
+      case "deny": {
+        // The statue in the Sculpture Court has his feather. He takes it back.
+        const st = this.room.blocks.find((b) => b.style === "statue" && dist(L.pos, b) < 1.4);
+        if (st && this.roomView.statueFeathers.some((f) => f.visible)) {
+          for (const f of this.roomView.statueFeathers) f.visible = false;
+          this.locke.restoreFeather();
+          this.learn("feather-back");
+          this.audio.play("feather.back", { pan });
+          this.locke.react("grin", 1.6);
+          this.quip("feather-back", 2.6, "ever");
+        } else this.audio.play("deny", { pan });
+        break;
+      }
       case "exit.closed": this.audio.play("exit.closed"); this.ui.toast("Exit sealed"); break;
       default: this.audio.play(e.type, { pan });
     }
   }
 
   /** Which line Locke should be saying right now (one at a time; each retires once its move is used). */
+  // ---- Locke moments: brief, never blocking, never repeated tediously ----
+  private quipT = 0;
+  private quipKey: string | null = null;
+  private quipSaid = new Set<string>();
+  private lastContactAt = -9;
+
+  /** Say a room line for a moment. "attempt" lines reset on restart; "ever" lines are saved. */
+  private quip(trigger: string, seconds = 2.4, once: "attempt" | "ever" = "attempt") {
+    const key = `${this.room.id}:${trigger}`;
+    if (once === "ever" ? this.learned.has(`q:${key}`) : this.quipSaid.has(key)) return;
+    if (!lineFor(this.room.id, trigger)) return;
+    // Never talk over a contact or alarm cue.
+    if (this.time - this.lastContactAt < 1.2 && trigger !== "alarm") return;
+    this.quipSaid.add(key);
+    if (once === "ever") this.learn(`q:${key}`);
+    this.quipKey = trigger; this.quipT = seconds;
+  }
+
+  private onNearMiss(emitter: string) {
+    const e = this.room.emitters.find((x) => x.id === emitter);
+    if (e?.type === "pendulum" && this.locke.hasFeather) {
+      this.locke.clipFeather();
+      this.audio.play("snip");
+      this.learn("feather-lost");
+      this.quip("feather", 2.6, "ever");
+      return;
+    }
+    this.locke.sweatDrop();
+    this.quip("nearMiss", 2.0);
+  }
+
   private speechTrigger(): string | null {
     const r = this.run, L = r.locke;
     if (this.tauntSay > 0) return "taunt-say";
+    const teach = this.teachTrigger(r, L);
+    if (teach) return teach;
+    if (this.quipT > 0 && this.quipKey) return this.quipKey;
+    return null;
+  }
+
+  private teachTrigger(r: HeistRun, L: HeistRun["locke"]): string | null {
     const tutorial = isTutorial(this.room.id);
     if (this.rewindCoach > 0) return !this.learned.has("restart") ? "fumble" : !this.learned.has("rewind") && tutorial ? "rewind" : null;
     if (r.phase === "case" && !this.learned.has("orbit")) return "orbit";
@@ -553,21 +677,26 @@ export class Game {
   }
 
   private showResults() {
-    const s = this.run.stats;
-    const grade = gradeFor(s.time, this.room.parTime, s.alarms, this.rewinds);
-    const rec = this.progress.rooms[this.room.id] ?? { clears: 0 };
+    const ch = this.chainFrom;
+    this.chainFrom = null;
+    const room = ch ? ch.room : this.room;
+    const g = this.run.stats;
+    const s = ch ? { time: ch.stats.time + g.time, alarms: Math.max(ch.stats.alarms, g.alarms), clearance: Math.min(ch.stats.clearance, g.clearance), value: ch.stats.value } : g;
+    const grade = gradeFor(s.time, room.parTime + (ch ? this.room.parTime : 0), s.alarms, this.rewinds);
+    const rec = this.progress.rooms[room.id] ?? { clears: 0 };
     const best = rec.bestTime === undefined || s.time < rec.bestTime;
     rec.clears++;
     if (best) rec.bestTime = s.time;
     if (!rec.bestGrade || GRADE_ORDER.indexOf(grade) > GRADE_ORDER.indexOf(rec.bestGrade)) rec.bestGrade = grade;
     if (Number.isFinite(s.clearance) && (rec.bestClearance === undefined || s.clearance < rec.bestClearance)) rec.bestClearance = s.clearance;
-    this.progress.rooms[this.room.id] = rec;
+    this.progress.rooms[room.id] = rec;
     void this.save.save(this.progress).catch(() => {});
     this.mode = "results";
     this.ui.showHud(false);
-    const next = this.editor ? null : this.nextRoomId(this.room.id);
-    const hasNext = !!next && next !== this.room.id;
-    this.ui.results({ headline: this.room.headline, prize: this.room.prize.name, time: s.time, par: this.room.parTime, alarms: s.alarms, clearance: s.clearance, value: s.value, grade, best, photo: this.photo, mini: isTutorial(this.room.id) },
+    if (grade === "Gentleman") setTimeout(() => this.audio.play("gentleman"), 900);
+    const next = this.editor ? null : this.nextRoomId(room.id);
+    const hasNext = !!next && next !== room.id;
+    this.ui.results({ headline: room.headline, prize: this.room.setPiece && !ch ? "" : room.prize.name, time: s.time, par: this.room.parTime, alarms: s.alarms, clearance: s.clearance, value: s.value, grade, best, photo: this.photo, mini: isTutorial(room.id) || (!!this.room.setPiece && !ch) },
       () => this.restart(), () => this.leave(), hasNext ? () => void this.playRoom(next!) : undefined);
   }
 
@@ -578,17 +707,25 @@ export class Game {
     toonLights.flash.value = Math.max(0, toonLights.flash.value - dt * 4);
     this.beams.update(frame.segments, dt, this.time);
     const sweepAngles: Record<string, number> = {};
-    for (const e of this.room.emitters) if (e.type === "sweeper") sweepAngles[e.id] = sweepAngle(e, r.sweep[e.id] ?? 0);
+    for (const e of this.room.emitters) if (e.type === "sweeper" || e.type === "camera" || e.type === "projector") sweepAngles[e.id] = sweepAngle(r.prizeLifted && e.out ? { ...e, ...e.out } : e, r.sweep[e.id] ?? 0);
+    const warn: Record<string, number> = {};
+    for (const sg of frame.segments) if (!sg.live && sg.warn > (warn[sg.emitter] ?? 0)) warn[sg.emitter] = sg.warn;
+    this.beams.reveal += ((r.obscura ? 1 : r.obscuraSeen ? 0.3 : 0) - this.beams.reveal) * (1 - Math.exp(-dt * 5));
     const target = r.targetMount();
     const playing = this.mode === "play";
     this.roomView.update(dt, {
       fed: frame.fed, emitterOn: frame.emitterOn, sweepAngles, targetMount: playing ? target : null, prizeLifted: r.prizeLifted, reduced,
-      doorOpen: (id) => id === this.room.entry.id ? (r.phase === "case" || r.phase === "in") : r.exitOpen(id)
+      doorOpen: (id) => id === this.room.entry.id ? (r.phase === "case" || r.phase === "in") : r.exitOpen(id),
+      beat: r.beat, shutterOpen: r.shutterOpen, plates: r.plates, obscura: r.obscura, warn
     });
+    const sp = this.roomView.space;
+    const lift = sp.floorY(L.floor) + (L.raised ? 0.45 : 0);
+    this.roomView.watch(sp.at(L.pos.x, L.pos.z, 1.2, L.floor));
+    const map = sp.side ? (x: number, z: number) => sp.at(x, z) : (x: number, z: number, y: number) => new THREE.Vector3(x, y + lift, z);
     const grade = this.celebrate >= 0 ? gradeFor(r.stats.time, this.room.parTime, r.threat, this.rewinds) : "";
     this.locke.update(dt, {
       pos: L.pos, vel: L.vel, facing: L.facing, pose: L.pose,
-      stretchPoints: L.stretch.points, armY: L.stretch.armY, stretching: L.stretch.active,
+      stretchPoints: L.stretch.points, armY: L.stretch.armY, stretching: L.stretch.active, map,
       holding: L.stretch.holding, hasPrize: L.hasPrize, takeTimer: L.takeTimer, grace: L.grace,
       beat: r.beat, stepPhase: L.stepPhase, celebrate: this.celebrate, smug: grade === "Gentleman" && this.celebrate > 1.1,
       caught: r.phase === "lockdown", camYaw: this.stage.yaw
@@ -618,6 +755,8 @@ export class Game {
         stretch: L.stretch.active ? 1 - L.stretch.length / STRETCH_MAX : null, prompt, reduced
       });
       document.documentElement.dataset.optic = occupied ? "1" : "0";
+      const rm = this.room;
+      this.ui.blueprint(rm.note && rm.author ? { title: ROOM_NAMES[rm.id] ?? rm.name, note: rm.note, author: rm.author, obscura: rm.obscura ? (r.obscura ? `Obscura open. ${this.ui.glyph("interact")} to close.` : `Camera obscura on the plinth: ${this.ui.glyph("interact")} to look from above.`) : undefined } : null, r.phase === "case");
       const trig = this.speechTrigger();
       const line = trig ? lineFor(this.room.id, trig) : null;
       if (line && trig !== this.lastSpoken) { this.lastSpoken = trig; this.audio.speak(line); }

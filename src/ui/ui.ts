@@ -160,7 +160,16 @@ export class UI {
     this.flashEl = el("div", "flash");
     this.toastEl = el("div", "toast");
     this.coachEl = el("div", "speech");
-    h.append(this.flashEl, tl, this.beltEl, this.meterEl, this.promptEl, this.coachEl, this.toastEl);
+    this.noteEl = el("div", "blueprint");
+    h.append(this.flashEl, tl, this.beltEl, this.meterEl, this.promptEl, this.coachEl, this.toastEl, this.noteEl);
+  }
+
+  private noteEl!: HTMLElement;
+  /** The designer's aged blueprint card: shown while casing, folds away once the clock runs. */
+  blueprint(note: { title: string; note: string; author: string; obscura?: string } | null, show: boolean) {
+    const html = note ? `<div class="bp-title">${note.title}</div><div class="bp-note">“${note.note}”</div><div class="bp-author">— ${note.author}</div>${note.obscura ? `<div class="bp-hint">${note.obscura}</div>` : ""}` : "";
+    if (this.noteEl.dataset.h !== html) { this.noteEl.innerHTML = html; this.noteEl.dataset.h = html; }
+    this.noteEl.classList.toggle("show", !!note && show);
   }
 
   setDevice(d: Device) { this.device = d; this.renderHint(); }

@@ -9,6 +9,8 @@ import { DIM, applyModelOverrides, buildGlasses, buildGlove, buildHat, buildHead
 export interface LockeFrame {
   pos: V2; vel: V2; facing: number; pose: Pose;
   stretchPoints: V2[]; armY: number; stretching: boolean;
+  /** Sim plane → world (floors, plinths, side view). Defaults to (x, y, z). */
+  map?: (x: number, z: number, y: number) => THREE.Vector3;
   holding: boolean; hasPrize: boolean;
   takeTimer: number; grace: number;
   beat: number; stepPhase: number;
@@ -146,6 +148,16 @@ export class LockeView {
     this.hatSparkle.position.set(0.08, 0.05, 0.1);
     this.hatSparkle.visible = false;
     this.hat.add(this.hatSparkle);
+    // The hat feather: a running gag. The Sapphire Hall pendulum clips it; a statue in the Sculpture Court holds it.
+    this.feather = buildFeather();
+    this.hatPivot.add(this.feather);
+    this.featherHome = this.feather.position.clone();
+    this.featherHomeQ = this.feather.quaternion.clone();
+    // A single bead of sweat for the tight squeezes.
+    this.sweat = new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), new THREE.MeshStandardMaterial({ color: "#cfe8ff", metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.85 }));
+    this.sweat.scale.set(0.8, 1.25, 0.8);
+    this.sweat.visible = false;
+    this.head.add(this.sweat);
 
     // Hose limbs (procedural: the stretch needs them).
     this.arms = [new Hose(26, 10), new Hose(64, 10)];
@@ -249,6 +261,36 @@ export class LockeView {
   }
 
   /** Taunt: a slow puff on the cigar, a curl of smoke, a grin. Purely cosmetic. */
+  private feather!: THREE.Group;
+  private featherHome!: THREE.Vector3;
+  private featherHomeQ!: THREE.Quaternion;
+  private featherFall = -1;
+  private featherVel = v3();
+  private sweat!: THREE.Mesh;
+  private sweatT = -1;
+  get hasFeather() { return this.feather.parent === this.hatPivot && this.feather.visible; }
+
+  /** The pendulum's blade snips the feather; it see-saws down to the floor. */
+  clipFeather() {
+    if (this.featherFall >= 0 || !this.feather.visible) return;
+    const scene = this.root.parent;
+    if (!scene) return;
+    scene.attach(this.feather);
+    this.featherFall = 0;
+    this.featherVel.set((Math.random() - 0.5) * 0.4, 0.5, (Math.random() - 0.5) * 0.4);
+    this.hatY.kick(1.2);
+  }
+  /** Hide it (it's elsewhere now: on the floor, in a statue's hand). */
+  dropFeather() { this.feather.visible = false; this.featherFall = -1; }
+  /** He takes it back. */
+  restoreFeather() {
+    this.hatPivot.add(this.feather);
+    this.feather.position.copy(this.featherHome); this.feather.quaternion.copy(this.featherHomeQ);
+    this.feather.visible = true; this.featherFall = -1;
+    this.hatY.kick(0.8);
+  }
+  sweatDrop() { if (this.sweatT < 0) this.sweatT = 0; }
+
   taunt() { if (this.tauntT < 0) { this.tauntT = 0; this.react("grin", 2.4); } }
   get taunting() { return this.tauntT >= 0; }
 
@@ -261,7 +303,8 @@ export class LockeView {
   update(dt: number, f: LockeFrame) {
     this.time += dt;
     const yaw = Math.PI / 2 - (f.facing * Math.PI) / 180;
-    this.root.position.set(f.pos.x, 0, f.pos.z);
+    const map = f.map ?? ((x: number, z: number, y: number) => v3(x, y, z));
+    this.root.position.copy(map(f.pos.x, f.pos.z, 0));
     this.root.rotation.y = yaw;
 
     const speed = Math.hypot(f.vel.x, f.vel.z);
@@ -431,10 +474,10 @@ export class LockeView {
         const stepN = Math.max(1, Math.floor(n / 24));
         for (let k = 1; k < n; k += stepN) {
           const w = f.stretchPoints[k]!;
-          pts.push(v3(w.x, f.armY, w.z).applyMatrix4(inv));
+          pts.push(map(w.x, w.z, f.armY).applyMatrix4(inv));
         }
         const last = f.stretchPoints[n - 1]!;
-        const lastLocal = v3(last.x, f.armY, last.z).applyMatrix4(inv);
+        const lastLocal = map(last.x, last.z, f.armY).applyMatrix4(inv);
         if (pts[pts.length - 1]!.distanceTo(lastLocal) > 1e-3) pts.push(lastLocal);
         if (pts.length === 2) pts.splice(1, 0, s.clone().lerp(lastLocal, 0.5).add(v3(0, 0.04, 0)));
         // Lift the first stretch out of the shoulder so it never kinks.
@@ -453,8 +496,42 @@ export class LockeView {
     }
     this.gloves[1].getWorldPosition(this.handWorld);
     this.hatPivot.getWorldPosition(this.hatWorld);
+    if (this.featherFall >= 0) {
+      // See-saw descent: drag-dominated, swinging side to side.
+      this.featherFall += dt;
+      const t = this.featherFall;
+      this.featherVel.y = Math.max(-0.35, this.featherVel.y - dt * 2.2);
+      this.feather.position.addScaledVector(this.featherVel, dt);
+      this.feather.position.x += Math.sin(t * 5) * dt * 0.5;
+      this.feather.rotation.z = Math.sin(t * 5) * 0.8;
+      if (this.feather.position.y < 0.03) { this.feather.position.y = 0.03; this.featherVel.set(0, 0, 0); }
+      if (t > 3.5) this.dropFeather();
+    }
+    if (this.sweatT >= 0) {
+      this.sweatT += dt;
+      const t = this.sweatT;
+      this.sweat.visible = t < 1.4;
+      this.sweat.position.set(0.075, DIM.headR * 1.4 - Math.min(1, t / 1.2) * DIM.headR * 0.9, DIM.eyesZ * 0.8);
+      if (t > 1.4) this.sweatT = -1;
+    }
 
     this.shadow.scale.setScalar(1 - (hipY - DIM.hipY) * 0.6);
     (this.shadow.material as THREE.MeshBasicMaterial).opacity = 0.9 - Math.max(0, hipY - DIM.hipY);
   }
+}
+
+/** A scarlet plume tucked in the hat band. */
+function buildFeather(): THREE.Group {
+  const g = new THREE.Group();
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.bezierCurveTo(0.03, 0.05, 0.035, 0.12, 0.006, 0.2);
+  shape.bezierCurveTo(-0.012, 0.12, -0.016, 0.05, 0, 0);
+  const vane = new THREE.Mesh(new THREE.ShapeGeometry(shape, 12), new THREE.MeshStandardMaterial({ color: "#b3122a", roughness: 0.6, side: THREE.DoubleSide, emissive: new THREE.Color("#3a0610"), emissiveIntensity: 0.5 }));
+  const quill = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.21, 5), new THREE.MeshStandardMaterial({ color: "#f3e6c8" }));
+  quill.position.y = 0.1;
+  g.add(vane, quill);
+  g.position.set(-0.11, 0.035, -0.02);
+  g.rotation.set(-0.35, 0.4, 0.55);
+  return g;
 }

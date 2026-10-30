@@ -1,15 +1,17 @@
 import * as THREE from "three";
 import type { PlacedOptic } from "../sim/beams";
 import { MIRROR_HALF } from "../sim/beams";
-import type { RoomDef } from "../sim/roomTypes";
+import type { OpticKind, RoomDef } from "../sim/roomTypes";
+import { Space } from "./space";
 import { P, goldMaterial } from "./palette";
 import { Spring } from "./spring";
+import { FLOOR_H } from "../sim/roomTypes";
 
 const gemVert = /* glsl */ `
 varying vec3 vN; varying vec3 vW;
 void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * viewMatrix * w; }`;
 const gemFrag = /* glsl */ `
-uniform float uTime; uniform float uGlow;
+uniform float uTime; uniform float uGlow; uniform vec3 uTint;
 varying vec3 vN; varying vec3 vW;
 vec3 hue(float h){ return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); }
 void main(){
@@ -21,7 +23,10 @@ void main(){
   vec3 fire = hue(h);
   vec3 r = reflect(-v, n);
   float spark = pow(max(0.0, r.y * 0.6 + 0.6 * sin(uTime * 2.0 + dot(n, vec3(5.0)))), 24.0);
-  vec3 col = mix(vec3(0.75, 0.85, 1.0) * 0.35, fire * 1.3, 0.55 + 0.45 * (1.0 - ndv));
+  // Coloured stones: the fire narrows toward the stone's body colour and the core glows deep.
+  float coloured = step(0.01, abs(uTint.r - uTint.b) + abs(uTint.g - uTint.b));
+  fire = mix(fire, uTint * (0.6 + 0.4 * fire.g), coloured * 0.8);
+  vec3 col = mix(mix(vec3(0.75, 0.85, 1.0) * 0.35, uTint * 0.55, coloured), fire * 1.3, 0.55 + 0.45 * (1.0 - ndv));
   col += vec3(1.0) * spark * 4.0;
   col *= uGlow;
   gl_FragColor = vec4(col, 1.0);
@@ -49,12 +54,16 @@ export class PrizeView {
   readonly restPos: THREE.Vector3;
 
   constructor(readonly room: RoomDef) {
-    this.mat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uGlow: { value: 1 } }, vertexShader: gemVert, fragmentShader: gemFrag, toneMapped: false });
+    this.mat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uGlow: { value: 1 }, uTint: { value: new THREE.Vector3(1, 1, 1) } }, vertexShader: gemVert, fragmentShader: gemFrag, toneMapped: false });
     this.gem = new THREE.Mesh(brilliantCut(), this.mat);
     this.gem.scale.setScalar(1.25);
     this.group.add(this.gem);
-    const ped = room.blocks.find((b) => b.style === "pedestal");
-    this.restPos = new THREE.Vector3(room.prize.x, (ped?.h ?? 0.95) + 0.25, room.prize.z);
+    const ped = room.blocks.find((b) => (b.style === "pedestal" || b.style === "statue") && Math.hypot(b.x - room.prize.x, b.z - room.prize.z) < 0.6);
+    this.restPos = new THREE.Vector3(room.prize.x, (room.prize.y ?? (ped?.h ?? 0.95) + 0.25) + (room.prize.floor ?? 0) * FLOOR_H, room.prize.z);
+    // Treasure colour: diamond white fire, crystal ice, ruby and sapphire deep glow, crown gold.
+    const tint: Record<string, [number, number, number]> = { diamond: [1, 1, 1], crystal: [0.8, 0.95, 1.1], ruby: [1.3, 0.25, 0.35], sapphire: [0.3, 0.5, 1.4], crown: [1.3, 1.0, 0.5] };
+    (this.mat.uniforms.uTint!.value as THREE.Vector3).set(...(tint[room.prize.kind] ?? [1, 1, 1]));
+    if (room.setPiece) this.group.visible = false;
     this.group.position.copy(this.restPos);
     // Soft halo sprite.
     const c = document.createElement("canvas");
@@ -111,7 +120,7 @@ export class PrizeView {
     const k = s.lifted ? 1 - Math.exp(-dt * 30) : 1;
     this.group.position.lerp(target, k);
     const sc = this.scale.step(s.hasPrize && !s.holding ? 0 : 1, dt);
-    this.group.visible = sc > 0.02;
+    this.group.visible = sc > 0.02 && !this.room.setPiece;
     this.group.scale.setScalar(Math.max(0, sc));
     this.gem.rotation.y += dt * (s.lifted ? 3 : 0.6);
     this.halo.quaternion.copy((this.group.parent as THREE.Object3D | null)?.quaternion ?? new THREE.Quaternion());
@@ -142,40 +151,73 @@ export class PrizeView {
   face(camera: THREE.Camera) { this.halo.quaternion.copy(camera.quaternion); }
 }
 
-/** Pocket Mirror: pops open into a full-length cheval mirror on its mount. */
+/** The belt's optics: cheval mirror, corner-cube retro, glass splitter, and the funhouse band-shifters. */
 export class OpticsView {
   readonly group = new THREE.Group();
-  private items = new Map<string, { g: THREE.Group; pivot: THREE.Group; spring: Spring; angle: Spring; shown: number }>();
+  private items = new Map<string, { g: THREE.Group; pivot: THREE.Group; spring: Spring; angle: Spring; shown: number; kind: OpticKind }>();
   private mirrorMat: THREE.MeshStandardMaterial;
   private frameMat: THREE.MeshStandardMaterial;
   private ghost: THREE.Group;
+  private space: Space;
 
   constructor(readonly room: RoomDef) {
+    this.space = new Space(room);
     this.mirrorMat = new THREE.MeshStandardMaterial({ color: "#c9d4e0", metalness: 1, roughness: 0.04, envMapIntensity: 1.6, emissive: new THREE.Color("#2a3440"), emissiveIntensity: 0.3 });
     this.frameMat = goldMaterial(0.22, 0.25);
-    this.ghost = this.build(true);
+    this.ghost = this.build("mirror", true);
     this.ghost.visible = false;
     this.group.add(this.ghost);
   }
 
-  private build(ghost = false): THREE.Group {
+  private glassFor(kind: OpticKind, ghost: boolean): THREE.Material {
+    if (ghost) return new THREE.MeshBasicMaterial({ color: P.gold, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide });
+    if (kind === "splitter") return new THREE.MeshStandardMaterial({ color: "#9fe8ff", metalness: 0.2, roughness: 0.02, transparent: true, opacity: 0.45, envMapIntensity: 2, side: THREE.DoubleSide, emissive: new THREE.Color("#1d5566"), emissiveIntensity: 0.6, depthWrite: false });
+    if (kind === "concave") return new THREE.MeshStandardMaterial({ color: "#f2c6d8", metalness: 1, roughness: 0.08, envMapIntensity: 1.6, emissive: new THREE.Color("#4a2433"), emissiveIntensity: 0.4, side: THREE.DoubleSide });
+    if (kind === "convex") return new THREE.MeshStandardMaterial({ color: "#c6d6f2", metalness: 1, roughness: 0.08, envMapIntensity: 1.6, emissive: new THREE.Color("#243048"), emissiveIntensity: 0.4, side: THREE.DoubleSide });
+    return this.mirrorMat;
+  }
+
+  private build(kind: OpticKind, ghost = false, fixed = false): THREE.Group {
     const g = new THREE.Group();
     const pivot = new THREE.Group();
     g.add(pivot);
     const H = 1.75, W = MIRROR_HALF * 2;
-    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.5, 40), ghost ? new THREE.MeshBasicMaterial({ color: P.gold, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide }) : this.mirrorMat);
-    glass.scale.set(W * 0.96, H * 0.96, 1);
+    if (kind === "retro") {
+      // Corner-cube retroreflector: a faceted jewel in a gimbal ring; it throws light straight back.
+      const jewel = new THREE.Mesh(new THREE.OctahedronGeometry(0.15, 0), ghost ? this.glassFor(kind, true) : new THREE.MeshStandardMaterial({ color: "#ffe9b8", metalness: 1, roughness: 0.05, envMapIntensity: 2, flatShading: true, emissive: new THREE.Color("#5a3a12"), emissiveIntensity: 0.6 }));
+      jewel.position.y = 0.95;
+      pivot.add(jewel);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.015, 8, 40), this.frameMat);
+      ring.position.y = 0.95;
+      pivot.add(ring);
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.03, 0.8, 8), this.frameMat);
+      post.position.y = 0.4;
+      pivot.add(post);
+      return g;
+    }
+    let geo: THREE.BufferGeometry = new THREE.CircleGeometry(0.5, 40);
+    if (kind === "concave" || kind === "convex") {
+      // Funhouse glass: visibly bowed (in for concave, out for convex) with a wavy rim.
+      geo = new THREE.PlaneGeometry(1, 1, 16, 24);
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i);
+        const r2 = x * x * 4 + y * y * 4;
+        pos.setZ(i, (kind === "concave" ? -1 : 1) * (1 - Math.min(1, r2)) * 0.12 + Math.sin(y * 18) * 0.01);
+      }
+      geo.computeVertexNormals();
+    }
+    const glass = new THREE.Mesh(geo, this.glassFor(kind, ghost));
+    glass.scale.set(W * 0.96, H * 0.96, kind === "concave" || kind === "convex" ? 2.4 : 1);
     glass.position.y = 0.12 + H / 2;
-    (glass.material as THREE.Material).side = THREE.DoubleSide;
     pivot.add(glass);
     const curve = new THREE.EllipseCurve(0, 0, W / 2, H / 2, 0, Math.PI * 2, false, 0);
-    const pts = curve.getPoints(64).map((p) => new THREE.Vector3(p.x, p.y, 0));
-    const frame = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 96, 0.022, 8, true), ghost ? new THREE.MeshBasicMaterial({ color: P.gold, transparent: true, opacity: 0.35 }) : this.frameMat);
+    const pts = curve.getPoints(64).map((p, i) => new THREE.Vector3(p.x * (kind === "concave" || kind === "convex" ? 1 + Math.sin(i * 0.6) * 0.05 : 1), p.y, 0));
+    const frame = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 96, kind === "splitter" ? 0.014 : 0.022, 8, true), ghost ? new THREE.MeshBasicMaterial({ color: P.gold, transparent: true, opacity: 0.35 }) : this.frameMat);
     frame.position.y = glass.position.y;
     pivot.add(frame);
     if (!ghost) {
-      // Crest + stand.
-      const crest = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.1, 4), this.frameMat);
+      const crest = new THREE.Mesh(kind === "splitter" ? new THREE.OctahedronGeometry(0.05) : new THREE.ConeGeometry(0.05, 0.1, 4), this.frameMat);
       crest.position.y = 0.12 + H + 0.05;
       pivot.add(crest);
       for (const sx of [-1, 1]) {
@@ -186,39 +228,72 @@ export class OpticsView {
         foot.position.set(sx * (W / 2 + 0.02), 0.01, 0);
         pivot.add(foot);
       }
+      if (fixed) {
+        // Bolted down: a heavy brass turntable with rivets says "turn me, don't take me".
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 0.06, 32), this.frameMat);
+        base.position.y = 0.03;
+        g.add(base);
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const rivet = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), this.frameMat);
+          rivet.position.set(Math.cos(a) * 0.3, 0.065, Math.sin(a) * 0.3);
+          g.add(rivet);
+        }
+      }
     }
     return g;
   }
+
+  /** Brief flash on an optic (splitters on first light, mirrors on a snap). */
+  private flashes = new Map<string, number>();
+  flash(mountId: string) { this.flashes.set(mountId, 1); }
 
   update(dt: number, optics: PlacedOptic[], ghostAt: { x: number; z: number; angle: number } | null) {
     const live = new Set(optics.map((o) => o.mountId));
     for (const op of optics) {
       let it = this.items.get(op.mountId);
       const m = this.room.mounts.find((mm) => mm.id === op.mountId)!;
+      if (it && it.kind !== op.kind) { this.group.remove(it.g); this.items.delete(op.mountId); it = undefined; }
       if (!it) {
-        const g = this.build();
-        g.position.set(m.x, 0, m.z);
+        const g = this.build(op.kind, false, !!op.fixed);
+        this.place(g, m.x, m.z, m.floor ?? 0);
         this.group.add(g);
-        it = { g, pivot: g.children[0] as THREE.Group, spring: new Spring(0, 4.5, 0.32), angle: new Spring(op.angle, 9, 0.55), shown: 0 };
+        // Stiff, near-critically damped: a precise mechanical turn that settles in one tick.
+        it = { g, pivot: g.children[0] as THREE.Group, spring: new Spring(op.fixed ? 1 : 0, 4.5, 0.32), angle: new Spring(op.angle, 22, 0.92), shown: 0, kind: op.kind };
         this.items.set(op.mountId, it);
       }
-      // Unwrap angle toward target to rotate the short way.
       let target = op.angle;
       while (target - it.angle.x > 180) target -= 360;
       while (target - it.angle.x < -180) target += 360;
       const a = it.angle.step(target, dt);
-      // Mirror surface direction = angle; the plane's normal is perpendicular to it.
-      it.g.rotation.y = -a * Math.PI / 180;
+      this.orient(it.g, a);
       const s = it.spring.step(1, dt);
-      it.pivot.scale.set(Math.max(0.01, s), Math.max(0.01, s), 1);
+      const fl = this.flashes.get(op.mountId) ?? 0;
+      if (fl > 0) this.flashes.set(op.mountId, Math.max(0, fl - dt * 5));
+      it.pivot.scale.set(Math.max(0.01, s) * (1 + fl * 0.06), Math.max(0.01, s), 1);
     }
     for (const [id, it] of this.items) {
       if (!live.has(id)) { this.group.remove(it.g); this.items.delete(id); }
     }
     this.ghost.visible = !!ghostAt;
     if (ghostAt) {
-      this.ghost.position.set(ghostAt.x, 0, ghostAt.z);
-      this.ghost.rotation.y = -ghostAt.angle * Math.PI / 180;
+      const m = this.room.mounts.find((mm) => Math.abs(mm.x - ghostAt.x) < 1e-6 && Math.abs(mm.z - ghostAt.z) < 1e-6);
+      this.place(this.ghost, ghostAt.x, ghostAt.z, m?.floor ?? 0);
+      this.orient(this.ghost, ghostAt.angle);
     }
+  }
+
+  private place(g: THREE.Object3D, x: number, z: number, floor: number) {
+    g.position.copy(this.space.at(x, z, 0, floor));
+    if (this.space.side) g.position.z -= 0.95; // the glass centre sits on the play plane
+  }
+
+  /** Mirror surface direction = angle. Side view turns about the depth axis instead. */
+  private orient(g: THREE.Object3D, deg: number) {
+    if (this.space.side) {
+      const r = deg * Math.PI / 180, x = new THREE.Vector3(Math.cos(r), -Math.sin(r), 0), y = new THREE.Vector3(0, 0, 1);
+      g.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, new THREE.Vector3().crossVectors(x, y)));
+    }
+    else g.rotation.y = -deg * Math.PI / 180;
   }
 }

@@ -193,7 +193,7 @@ test("camera obscura: interact while casing toggles the view without starting th
   const ev = steps(r, 2, () => ({ interact: r.tick === 1 }));
   assert.ok(ev.includes("obscura") && r.obscura && r.phase === "case");
   steps(r, 2, () => ({ move: v2(1, 0) }));
-  assert.ok(!r.obscura && r.phase === "in");
+  assert.ok(!r.obscura && (r.phase as string) === "in");
 });
 
 test("side view: gravity, catch a hook, climb, and run out of arm", () => {

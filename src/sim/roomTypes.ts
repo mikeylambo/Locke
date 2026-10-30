@@ -117,6 +117,8 @@ export interface RoomDef {
   fixedOptics?: FixedOpticDef[];
   /** Camera obscura station: interact while casing to see the hidden beams from above. */
   obscura?: { x: number; z: number; floor?: number };
+  /** Painted portraits whose eyes follow Locke (facing: degrees the canvas looks toward). */
+  portraits?: Array<{ x: number; z: number; facing: number; floor?: number; name?: string }>;
   /** The designer's blueprint card shown while casing. */
   note?: string;
   author?: string;

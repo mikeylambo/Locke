@@ -161,6 +161,8 @@ export class AudioEngine {
     const ctx = this.ctx;
     if (!ctx || !this.room) return;
     const t = ctx.currentTime;
+    // The flip steps the tempo up (the sim's beat clock does the same).
+    this.tempo = (a.phase === "out" || a.phase === "escaped") && this.room.tempoOut ? this.room.tempoOut : this.room.tempo;
     const bps = this.tempo / 60;
     // Beam chord: each live emitter sustains its note; pulses gate staccato.
     const sounding = a.phase !== "escaped";
@@ -203,7 +205,8 @@ export class AudioEngine {
     // Music layers.
     const L = this.layers;
     const bed = a.phase === "case" ? 0.45 : a.phase === "lockdown" ? 0 : 0.85;
-    const near = a.phase === "out" || a.phase === "escaped" ? 1 : Math.min(1, a.nearPrize);
+    // Tension curve: casing is just the bed; the heist slowly fills in as he closes on the prize; the flip goes full band.
+    const near = a.phase === "out" || a.phase === "escaped" ? 1 : a.phase === "case" ? 0 : Math.min(1, Math.max(a.nearPrize, 0.25));
     const esc = a.phase === "out" ? 1 : a.phase === "escaped" ? 0.7 : 0;
     L.bed.gain.setTargetAtTime(a.running ? bed : 0, t, 0.4);
     L.near.gain.setTargetAtTime(a.running ? near * 0.85 : 0, t, 0.8);
@@ -555,6 +558,37 @@ export class AudioEngine {
         o.connect(lp).connect(g).connect(this.sfxBus);
         o.start(t); vib.start(t); o.stop(end + 2); vib.stop(end + 2);
         this.play("shutter");
+        break;
+      }
+      case "plate": this.burst(900, 2, 0.05, 0.12, this.sfxBus, t, pan); this.blip(210, 0.08, 0.1, "triangle", this.sfxBus, t, 160); break;
+      case "plate.up": this.blip(260, 0.06, 0.05, "triangle", this.sfxBus, t, 330); break;
+      case "gate.open": {
+        // Brass grille grinding up on its chain, then a settling clunk.
+        for (let i = 0; i < 8; i++) this.burst(1400 + i * 90, 8, 0.03, 0.05, this.sfxBus, t + i * 0.07, pan);
+        this.blip(110, 0.25, 0.12, "triangle", this.sfxBus, t + 0.62, 80);
+        this.bell(t + 0.62, mtof(this.key.degree(5, 4)), 0.04, 0.6);
+        break;
+      }
+      case "gate.close": this.burst(260, 0.8, 0.5, 0.2, this.sfxBus, t, pan); this.blip(70, 0.3, 0.2, "sine", this.sfxBus, t); break;
+      case "stairs": this.burst(2600, 3, 0.02, 0.04, this.sfxBus, t + 0.12, pan); break;
+      case "obscura.open": this.burst(5200, 2, 0.25, 0.06); this.bell(t + 0.05, mtof(this.key.degree(3, 5)), 0.04, 0.9); this.bell(t + 0.15, mtof(this.key.degree(5, 5)), 0.04, 1.1); break;
+      case "obscura.close": this.burst(4200, 2, 0.15, 0.05); this.bell(t, mtof(this.key.degree(1, 5)), 0.03, 0.6); break;
+      case "hook": this.bell(t, 1900, 0.05, 0.25); this.blip(500, 0.05, 0.05, "triangle", this.sfxBus, t); break;
+      case "letgo": this.blip(900, 0.5, 0.05, "sine", this.sfxBus, t, 300); break;
+      case "yank": this.blip(220, 0.25, 0.08, "sawtooth", this.sfxBus, t, 1100); this.burst(1800, 1, 0.12, 0.08, this.sfxBus, t, pan); break;
+      case "land": this.burst(300, 0.6, 0.12, 0.2, this.sfxBus, t, pan); this.blip(90, 0.12, 0.15, "sine", this.sfxBus, t, 60); break;
+      case "snip": this.burst(8000, 10, 0.03, 0.12, this.sfxBus, t); this.burst(6500, 10, 0.03, 0.1, this.sfxBus, t + 0.05); this.blip(1400, 0.6, 0.03, "sine", this.sfxBus, t + 0.1, 500); break;
+      case "feather.back": this.bell(t, mtof(this.key.degree(5, 5)), 0.05, 0.5); this.bell(t + 0.09, mtof(this.key.degree(8, 5)), 0.05, 0.8); break;
+      case "pendulum": this.bell(t, mtof(this.key.degree(1, 3)), 0.035, 1.6); break;
+      case "projector.spin": this.blip(180, 0.6, 0.04, "sawtooth", this.sfxBus, t, 320); break;
+      case "projector.freeze": for (let i = 0; i < 6; i++) this.bell(t + i * 0.04, mtof(this.key.degree(1 + i * 2, 5)), 0.03, 1.4); this.burst(400, 0.5, 0.4, 0.12); break;
+      case "splitter": this.bell(t, 3200, 0.03, 0.2); this.bell(t + 0.02, 4100, 0.02, 0.15); break;
+      case "gentleman": {
+        // The Gentleman sting: a muted-trumpet "shave and a haircut" over a brass swell.
+        const spb = 60 / this.tempo;
+        const seq: Array<[number, number, number]> = [[0, 5, 0.5], [0.5, 3, 0.25], [0.75, 3, 0.25], [1, 4, 0.5], [1.5, 3, 0.5], [2.5, 7, 0.5], [3, 8, 1.2]];
+        for (const [b, dg, len] of seq) this.trumpet(t + b * spb * 0.8, mtof(this.key.degree(dg, 4)), spb * len, this.sfxBus);
+        this.brass(t + 3 * spb * 0.8, this.key.chord(1, 3).map(mtof), 0.4, 0.14, this.sfxBus);
         break;
       }
       case "sizzle": this.burst(7500, 6, 0.12, 0.05, this.sfxBus, t, pan); this.blip(2600, 0.06, 0.012, "sawtooth", this.sfxBus, t, 3400); break;

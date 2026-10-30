@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { BeamSegment } from "../sim/beams";
-import { BAND_Y } from "../sim/roomTypes";
+import { BAND_Y, FLOOR_H } from "../sim/roomTypes";
+import type { Space } from "./space";
 import { P, spectral } from "./palette";
 
 const MAX = 512;
@@ -104,11 +105,18 @@ export class BeamView {
     if (seg.tint === "emerald") return out.copy(P.emerald);
     if (seg.tint === "violet") return out.copy(P.violet);
     if (seg.tint === "gold") return out.copy(P.gold);
+    if (seg.tint === "camera") return out.setRGB(0.75, 0.85, 1.0).multiplyScalar(0.55);
     return out.copy(P.laser);
   }
 
   /** Colour-independent beam language: each type gets its own pattern. */
   patterns = false;
+
+  /** Camera obscura: hidden beams drawn at full strength (and remembered faintly after). */
+  reveal = 0;
+  space: Space | null = null;
+  private pa = new THREE.Vector3();
+  private pb = new THREE.Vector3();
 
   update(segments: BeamSegment[], dt: number, time: number) {
     this.uniforms.uTime.value = time;
@@ -118,12 +126,22 @@ export class BeamView {
     for (const seg of segments) {
       if (n >= MAX) break;
       const y = BAND_Y[seg.band];
+      const sp = this.space;
+      const side = !!sp?.side;
+      if (sp) { sp.at(seg.a.x, seg.a.z, y, seg.floor, this.pa); sp.at(seg.b.x, seg.b.z, y, seg.floor, this.pb); }
+      else { this.pa.set(seg.a.x, y, seg.a.z); this.pb.set(seg.b.x, y, seg.b.z); }
+      if (seg.vertical) {
+        // Grate shaft: from the grille below up through the whole floor above.
+        if (seg.band !== "mid") continue;
+        this.pa.y = (seg.floor - 1) * FLOOR_H + 0.05; this.pb.y = seg.floor * FLOOR_H + 2.1;
+      }
+      const hide = seg.hidden ? 0.12 + 0.88 * this.reveal : 1;
       const col = this.colorFor(seg, time, this.tmp);
       const tr = this.tripped.get(seg.emitter) ?? 0;
       const sz = this.sizzle.get(seg.emitter) ?? 0;
       const fl = Math.max(this.flash.get(seg.emitter) ?? 0, tr > 0 ? 0.25 + 0.2 * Math.abs(Math.sin(time * 14)) : 0, sz > 0 ? (Math.sin(time * 90) > 0 ? 0.3 : 0.1) * Math.min(1, sz * 4) : 0);
       const warnOnly = !seg.live;
-      const intensity = warnOnly ? 0.35 + seg.warn * 0.9 : 1;
+      const intensity = (warnOnly ? 0.35 + seg.warn * 0.9 : 1) * hide * (seg.tint === "camera" ? 0.6 : 1);
       const pattern = !this.patterns ? 0 : seg.type === "pulse" ? 3.5 : seg.type === "sweeper" ? (seg.tint === "prism" ? 0 : 12) : seg.type === "oscillator" ? 6 : 0;
       const dash = warnOnly ? 6 : seg.type === "tripwire" ? 9 : pattern;
       const whiten = Math.min(1, fl * 3);
@@ -131,17 +149,18 @@ export class BeamView {
       for (const [L, width, inten, flat, yy] of [
         [core, 0.008, 7, 0, y],
         [glow, 0.075, 0.3, 0, y],
-        [floor, 0.32, 0.22 * (1.6 - y * 0.5), 1, 0.012]
+        [floor, 0.32, side || seg.vertical ? 0 : 0.22 * (1.6 - y * 0.5), 1, 0.012]
       ] as const) {
-        L.a[n * 3] = seg.a.x; L.a[n * 3 + 1] = yy; L.a[n * 3 + 2] = seg.a.z;
-        L.b[n * 3] = seg.b.x; L.b[n * 3 + 1] = yy; L.b[n * 3 + 2] = seg.b.z;
+        const dy = L === floor ? yy - y : 0;
+        L.a[n * 3] = this.pa.x; L.a[n * 3 + 1] = this.pa.y + dy; L.a[n * 3 + 2] = this.pa.z;
+        L.b[n * 3] = this.pb.x; L.b[n * 3 + 1] = (seg.vertical && L === floor ? this.pa.y : this.pb.y) + dy; L.b[n * 3 + 2] = this.pb.z;
         L.c[n * 3] = cr; L.c[n * 3 + 1] = cg; L.c[n * 3 + 2] = cb;
         L.p[n * 4] = width * (1 + fl * 2); L.p[n * 4 + 1] = inten * intensity * (1 + fl * 2); L.p[n * 4 + 2] = dash; L.p[n * 4 + 3] = flat;
         L.s[n] = seg.s0;
       }
       n++;
       if (seg.live && f < MAX) {
-        this.flarePos[f * 3] = seg.b.x; this.flarePos[f * 3 + 1] = y; this.flarePos[f * 3 + 2] = seg.b.z;
+        this.flarePos[f * 3] = this.pb.x; this.flarePos[f * 3 + 1] = this.pb.y; this.flarePos[f * 3 + 2] = this.pb.z;
         this.flareCol[f * 3] = cr * 1.6; this.flareCol[f * 3 + 1] = cg * 1.6; this.flareCol[f * 3 + 2] = cb * 1.6;
         f++;
       }

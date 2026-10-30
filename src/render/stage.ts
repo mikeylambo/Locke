@@ -147,19 +147,39 @@ export class Stage {
   }
 
   orbit(dYaw: number, dPitch: number) {
+    if (this.side || this.overheadOn) return;
     this.yawTarget += dYaw;
     this.pitchTarget = Math.max(0.42, Math.min(1.32, this.pitchTarget + dPitch));
   }
 
   /** Snap to the nearest of 8 readable angles. */
-  snap() { this.yawTarget = Math.round(this.yawTarget / (Math.PI / 4)) * (Math.PI / 4); }
-  snapStep(dir: number) { this.yawTarget = (Math.round(this.yawTarget / (Math.PI / 4)) + dir) * (Math.PI / 4); }
+  snap() { if (this.side) return; this.yawTarget = Math.round(this.yawTarget / (Math.PI / 4)) * (Math.PI / 4); }
+  snapStep(dir: number) { if (this.side) return; this.yawTarget = (Math.round(this.yawTarget / (Math.PI / 4)) + dir) * (Math.PI / 4); }
 
   setDist(d: number) { this.baseDist = d; this.resize(); }
 
-  focus(x: number, z: number, weight: number) {
+  focus(x: number, z: number, weight: number, y = 0.4) {
     if (this.pin) { this.targetGoal.set(this.pin.x, this.pin.y ?? 0.6, this.pin.z); return; }
-    this.targetGoal.set(x * weight, 0.4, 0.3 + (z - 0.3) * weight);
+    if (this.side) { this.targetGoal.set(x * weight, y, 0); return; }
+    this.targetGoal.set(x * weight, y, 0.3 + (z - 0.3) * weight);
+  }
+
+  /** Side-view rooms: camera locked square-on to the x/y plane. */
+  side = false;
+  private savedPitch = 0.86;
+  lockSide(on: boolean) {
+    this.side = on;
+    if (on) { this.yawTarget = 0; this.pitchTarget = 0.1; }
+    else this.pitchTarget = 0.86;
+  }
+
+  /** Camera obscura: swing up to a straight-down plan view and back. */
+  private overheadOn = false;
+  overhead(on: boolean) {
+    if (on === this.overheadOn) return;
+    this.overheadOn = on;
+    if (on) { this.savedPitch = this.pitchTarget; this.pitchTarget = 1.5; }
+    else this.pitchTarget = this.savedPitch;
   }
 
   /** Jump straight to the current goals (cuts, debug). */
