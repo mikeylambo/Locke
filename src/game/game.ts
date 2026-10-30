@@ -779,7 +779,7 @@ export class Game {
       });
       document.documentElement.dataset.optic = occupied ? "1" : "0";
       const rm = this.room;
-      this.ui.blueprint(rm.note && rm.author ? { title: ROOM_NAMES[rm.id] ?? rm.name, note: rm.note, author: rm.author, obscura: rm.obscura ? (r.obscura ? `Obscura open. ${this.ui.glyph("interact")} to close.` : `Camera obscura on the plinth: ${this.ui.glyph("interact")} to look from above.`) : undefined } : null, r.phase === "case");
+      this.ui.blueprint(rm.note && rm.author ? { title: ROOM_NAMES[rm.id] ?? rm.name, note: rm.note, author: rm.author, obscura: rm.obscura && !r.prizeLifted ? (r.obscura ? `Obscura open. ${this.ui.glyph("interact")} to close.` : `Camera obscura on the plinth: ${this.ui.glyph("interact")} to look from above.`) : undefined } : null, r.phase === "case" || r.obscura);
       const trig = this.speechTrigger();
       const line = trig ? lineFor(this.room.id, trig) : null;
       if (line && trig !== this.lastSpoken) { this.lastSpoken = trig; this.audio.speak(line); }

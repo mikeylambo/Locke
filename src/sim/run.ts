@@ -207,10 +207,11 @@ export class HeistRun {
     if (this.phase === "escaped") { this.beat += dBeat; this.refreshBeams(); return this.events; }
 
     // Interact at the camera obscura is part of casing; it doesn't start the clock.
-    const atObscura = this.phase === "case" && this.nearObscura();
+    // The camera obscura works until the prize lifts; while casing it doesn't start the clock.
+    const atObscura = (this.phase === "case" || this.phase === "in") && this.nearObscura();
     const wants = len(input.move) > 0.15 || input.stretch || (input.interact && !atObscura) || input.crouch || input.flatten;
-    if (this.phase === "case" && atObscura && input.interact) { this.obscura = !this.obscura; this.obscuraSeen = true; this.emit({ type: "obscura", on: this.obscura }); input = { ...input, interact: false }; }
-    if (this.phase === "case" && wants && this.obscura) { this.obscura = false; this.emit({ type: "obscura", on: false }); }
+    if (atObscura && input.interact) { this.obscura = !this.obscura; this.obscuraSeen = true; this.emit({ type: "obscura", on: this.obscura }); input = { ...input, interact: false }; }
+    if (this.obscura && (len(input.move) > 0.15 || input.stretch || input.crouch || input.flatten || this.phase === "out")) { this.obscura = false; this.emit({ type: "obscura", on: false }); }
     if (this.phase === "case" && wants) { this.phase = "in"; this.emit({ type: "run.start" }); }
     if (this.phase === "in" || this.phase === "out") this.runTicks++;
 
