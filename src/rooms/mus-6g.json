@@ -1,0 +1,142 @@
+{
+  "venue": "gilded-museum",
+  "theme": "museum",
+  "blocks": [
+    {
+      "x": -1.4,
+      "z": 1.95,
+      "w": 2.4,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    },
+    {
+      "x": 1.6,
+      "z": -0.25,
+      "w": 2.4,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    },
+    {
+      "x": 3.55,
+      "z": -2.3,
+      "w": 2.0,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    }
+  ],
+  "mounts": [
+    {
+      "id": "hA",
+      "x": -2.8,
+      "z": 0.4,
+      "hook": true
+    },
+    {
+      "id": "hB",
+      "x": 0.2,
+      "z": -1.8,
+      "hook": true
+    },
+    {
+      "id": "hC",
+      "x": 2.0,
+      "z": -3.85,
+      "hook": true
+    },
+    {
+      "id": "m",
+      "x": -2.0,
+      "z": 2.6
+    }
+  ],
+  "sensors": [],
+  "emitters": [
+    {
+      "id": "stars",
+      "type": "sweeper",
+      "x": -1.8,
+      "z": -2.8,
+      "angle": 0,
+      "bands": [
+        "mid"
+      ],
+      "housing": "post",
+      "spokes": 2,
+      "sweep": {
+        "speed": 40
+      },
+      "range": 2.2,
+      "tint": "prism",
+      "note": 1
+    },
+    {
+      "id": "rib-beam",
+      "type": "static",
+      "x": 4.9,
+      "z": 2.6,
+      "angle": 180,
+      "bands": [
+        "mid"
+      ],
+      "housing": "wall",
+      "note": 5
+    }
+  ],
+  "belt": [],
+  "id": "mus-6g",
+  "name": "Up the Dome",
+  "view": "side",
+  "setPiece": true,
+  "headline": "GILDED MUSEUM STRIPPED OF ITS CROWN JEWEL",
+  "size": {
+    "w": 10,
+    "d": 8,
+    "h": 1.2
+  },
+  "key": {
+    "root": "C",
+    "mode": "major"
+  },
+  "tempo": 136,
+  "parTime": 30,
+  "spawn": {
+    "x": -4.0,
+    "z": 4.0,
+    "facing": 0
+  },
+  "entry": {
+    "id": "ring",
+    "x": -5.0,
+    "z": 4.0,
+    "wall": "w",
+    "phase": "in"
+  },
+  "exits": [
+    {
+      "id": "skylight",
+      "x": 4.0,
+      "z": -2.45,
+      "wall": "n",
+      "phase": "in"
+    }
+  ],
+  "fixedOptics": [
+    {
+      "mountId": "m",
+      "kind": "mirror",
+      "angle": 0
+    }
+  ],
+  "prize": {
+    "kind": "crystal",
+    "x": 0,
+    "z": 0,
+    "value": 0,
+    "name": ""
+  },
+  "note": "Up is the only way out. Mind the constellations.",
+  "author": "The Board of Trustees"
+}

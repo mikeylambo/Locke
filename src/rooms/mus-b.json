@@ -1,0 +1,187 @@
+{
+  "venue": "gilded-museum",
+  "theme": "museum",
+  "blocks": [
+    {
+      "x": -5.9,
+      "z": -1.4500000000000002,
+      "w": 2.2,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    },
+    {
+      "x": -3.7,
+      "z": -0.6000000000000001,
+      "w": 2.2,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    },
+    {
+      "x": -1.5,
+      "z": 0.24999999999999986,
+      "w": 2.2,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    },
+    {
+      "x": 0.7000000000000002,
+      "z": 1.0999999999999996,
+      "w": 2.2,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    },
+    {
+      "x": 2.9000000000000004,
+      "z": 1.9499999999999997,
+      "w": 2.2,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    }
+  ],
+  "mounts": [],
+  "sensors": [],
+  "emitters": [
+    {
+      "id": "step-1",
+      "type": "pulse",
+      "x": -2.6500000000000004,
+      "z": -1.6500000000000001,
+      "angle": 180,
+      "bands": [
+        "mid"
+      ],
+      "housing": "post",
+      "range": 2.1,
+      "note": 1,
+      "pulse": {
+        "period": 4,
+        "duty": 0.5,
+        "offset": 0.5
+      }
+    },
+    {
+      "id": "step-2",
+      "type": "pulse",
+      "x": -0.44999999999999996,
+      "z": -0.8000000000000002,
+      "angle": 180,
+      "bands": [
+        "mid"
+      ],
+      "housing": "post",
+      "range": 2.1,
+      "note": 3,
+      "pulse": {
+        "period": 4,
+        "duty": 0.5,
+        "offset": 1.0
+      }
+    },
+    {
+      "id": "step-3",
+      "type": "pulse",
+      "x": 1.7500000000000002,
+      "z": 0.04999999999999971,
+      "angle": 180,
+      "bands": [
+        "mid"
+      ],
+      "housing": "post",
+      "range": 2.1,
+      "note": 5,
+      "pulse": {
+        "period": 4,
+        "duty": 0.5,
+        "offset": 1.5
+      }
+    },
+    {
+      "id": "step-4",
+      "type": "pulse",
+      "x": 3.95,
+      "z": 0.8999999999999998,
+      "angle": 180,
+      "bands": [
+        "mid"
+      ],
+      "housing": "post",
+      "range": 2.1,
+      "note": 8,
+      "pulse": {
+        "period": 4,
+        "duty": 0.5,
+        "offset": 2.0
+      }
+    },
+    {
+      "id": "landing",
+      "type": "pulse",
+      "x": 6.9,
+      "z": 2.6,
+      "angle": 180,
+      "bands": [
+        "mid"
+      ],
+      "housing": "wall",
+      "range": 3.2,
+      "note": 6,
+      "pulse": {
+        "period": 2,
+        "duty": 0.5,
+        "offset": 0.5
+      }
+    }
+  ],
+  "belt": [],
+  "id": "mus-b",
+  "name": "The Grand Staircase",
+  "view": "side",
+  "setPiece": true,
+  "headline": "MARBLE STAIRS, PERFECT POSTURE",
+  "size": {
+    "w": 14,
+    "d": 7,
+    "h": 1.2
+  },
+  "key": {
+    "root": "G",
+    "mode": "mixolydian"
+  },
+  "tempo": 120,
+  "parTime": 25,
+  "note": "Descend with dignity. The lasers keep the tempo.",
+  "author": "The Metronome",
+  "spawn": {
+    "x": -6.4,
+    "z": -1.6,
+    "facing": 0
+  },
+  "entry": {
+    "id": "top",
+    "x": -7.0,
+    "z": -1.6,
+    "wall": "w",
+    "phase": "in"
+  },
+  "exits": [
+    {
+      "id": "foyer",
+      "x": 6.4,
+      "z": 3.5,
+      "wall": "e",
+      "phase": "in"
+    }
+  ],
+  "prize": {
+    "kind": "crystal",
+    "x": 0,
+    "z": 0,
+    "value": 0,
+    "name": ""
+  }
+}

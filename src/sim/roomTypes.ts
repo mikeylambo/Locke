@@ -13,7 +13,7 @@ export type OpticKind = "mirror" | "retro" | "splitter" | "concave" | "convex";
 /** Band-shift mirrors: concave throws the beam one band up, convex one band down. */
 export const BAND_SHIFT: Partial<Record<OpticKind, 1 | -1>> = { concave: 1, convex: -1 };
 
-export interface BlockDef { x: number; z: number; w: number; d: number; h: number; style?: "plinth" | "case" | "column" | "post" | "pedestal" | "sensor" | "rail" | "statue" | "ledge"; solid?: boolean;
+export interface BlockDef { x: number; z: number; w: number; d: number; h: number; style?: "plinth" | "case" | "column" | "post" | "pedestal" | "sensor" | "rail" | "statue" | "ledge" | "screen"; solid?: boolean;
   /** Locke can step up onto it: his body rides one band higher while on top. */
   stand?: boolean; floor?: number }
 export interface MountDef { id: string; x: number; z: number; floor?: number;
@@ -21,7 +21,9 @@ export interface MountDef { id: string; x: number; z: number; floor?: number;
   well?: number;
   /** Side view: a hook the stretched hand can catch and hang from. */
   hook?: boolean }
-export interface SensorDef { id: string; x: number; z: number; floor?: number }
+export interface SensorDef { id: string; x: number; z: number; floor?: number;
+  /** Only light arriving in this band registers (funhouse mirrors shift bands to reach it). */
+  band?: Band }
 /** A pre-installed optic: rotatable in place but bolted down. */
 export interface FixedOpticDef { mountId: string; kind: OpticKind; angle: number; rotatable?: boolean }
 /** Floor plate. Pressed while Locke stands on it (or while the prize sits on it, for `prize` plates). */

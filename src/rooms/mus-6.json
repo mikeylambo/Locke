@@ -1,216 +1,145 @@
 {
-  "id": "mus-6",
-  "name": "The Grand Rotunda",
   "venue": "gilded-museum",
-  "headline": "GILDED MUSEUM STRIPPED OF ITS CROWN JEWEL",
-  "size": {
-    "w": 12,
-    "d": 9,
-    "h": 3.2
-  },
-  "key": {
-    "root": "D",
-    "mode": "dorian"
-  },
-  "tempo": 112,
-  "parTime": 70,
-  "spawn": {
-    "x": -4,
-    "z": 3.8,
-    "facing": -90
-  },
-  "entry": {
-    "id": "entry",
-    "x": -4,
-    "z": 4.5,
-    "wall": "s",
-    "phase": "in"
-  },
+  "theme": "museum",
   "blocks": [
     {
-      "x": 2.5,
-      "z": -3.6,
+      "x": 0,
+      "z": 0,
       "w": 0.7,
       "d": 0.7,
-      "h": 0.95,
+      "h": 1.1,
       "style": "pedestal"
     },
     {
-      "x": -3,
-      "z": 1.2,
+      "x": 0,
+      "z": -2.3,
+      "w": 4.8,
+      "d": 0.2,
+      "h": 1.1,
+      "style": "rail",
+      "solid": false
+    },
+    {
+      "x": 2.3,
+      "z": 0,
+      "w": 0.2,
+      "d": 4.8,
+      "h": 1.1,
+      "style": "rail",
+      "solid": false
+    },
+    {
+      "x": -2.3,
+      "z": 0,
+      "w": 0.2,
+      "d": 4.8,
+      "h": 1.1,
+      "style": "rail",
+      "solid": false
+    },
+    {
+      "x": -1.6,
+      "z": 2.3,
+      "w": 1.6,
+      "d": 0.2,
+      "h": 1.1,
+      "style": "rail",
+      "solid": false
+    },
+    {
+      "x": 1.6,
+      "z": 2.3,
+      "w": 1.6,
+      "d": 0.2,
+      "h": 1.1,
+      "style": "rail",
+      "solid": false
+    },
+    {
+      "x": 4.0,
+      "z": -5.0,
       "w": 0.3,
       "d": 0.3,
-      "h": 1.2,
+      "h": 0.7,
+      "style": "sensor",
+      "floor": 1
+    },
+    {
+      "x": -5.0,
+      "z": -1.5,
+      "w": 0.3,
+      "d": 0.3,
+      "h": 0.7,
       "style": "sensor"
-    },
-    {
-      "x": -5.521,
-      "z": -0.8,
-      "w": 0.958,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": -4.563,
-      "z": -0.8,
-      "w": 0.958,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": -3.605,
-      "z": -0.8,
-      "w": 0.958,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": -2.647,
-      "z": -0.8,
-      "w": 0.958,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": -1.689,
-      "z": -0.8,
-      "w": 0.958,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": -0.2242,
-      "z": -0.8,
-      "w": 1.1317,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": 0.9075,
-      "z": -0.8,
-      "w": 1.1317,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": 2.0392,
-      "z": -0.8,
-      "w": 1.1317,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": 3.1708,
-      "z": -0.8,
-      "w": 1.1317,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": 4.3025,
-      "z": -0.8,
-      "w": 1.1317,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": 5.4342,
-      "z": -0.8,
-      "w": 1.1317,
-      "d": 0.6,
-      "h": 1.25,
-      "style": "case"
-    },
-    {
-      "x": 0.9,
-      "z": -3.0,
-      "w": 0.18,
-      "d": 0.18,
-      "h": 1.0,
-      "style": "post"
-    },
-    {
-      "x": -3.4,
-      "z": -3.4,
-      "w": 0.8,
-      "d": 0.8,
-      "h": 1.25,
-      "style": "case"
     }
   ],
   "mounts": [
     {
-      "id": "m1",
-      "x": -3,
-      "z": 2.6
+      "id": "well",
+      "x": -5.0,
+      "z": -5.0,
+      "floor": 1,
+      "well": 0
     }
   ],
   "sensors": [
     {
-      "id": "s1",
-      "x": -3,
-      "z": 1.2
+      "id": "A",
+      "x": 4.0,
+      "z": -5.0,
+      "floor": 1
+    },
+    {
+      "id": "B",
+      "x": -5.0,
+      "z": -1.5
     }
   ],
   "emitters": [
     {
-      "id": "feed",
-      "type": "static",
-      "x": 6,
-      "z": 2.6,
-      "angle": 180,
-      "bands": [
-        "high"
-      ],
-      "housing": "wall",
-      "note": 1
-    },
-    {
-      "id": "grid-a",
-      "type": "static",
-      "x": -6,
-      "z": 0.6,
+      "id": "projector",
+      "type": "projector",
+      "x": 0,
+      "z": 0,
       "angle": 0,
       "bands": [
-        "low",
-        "mid",
         "high"
       ],
+      "spokes": 3,
+      "allFloors": true,
+      "sweep": {
+        "speed": 22
+      },
+      "range": 9.6,
+      "startOffset": 0.35,
+      "tint": "prism",
+      "note": 1,
+      "out": {
+        "spokes": 12,
+        "sweep": {
+          "speed": 0
+        }
+      }
+    },
+    {
+      "id": "ring-beam",
+      "type": "static",
+      "x": -9.0,
+      "z": -5.0,
+      "angle": 0,
+      "bands": [
+        "mid"
+      ],
       "housing": "wall",
-      "poweredBy": "s1",
+      "floor": 1,
       "note": 5
     },
     {
-      "id": "grid-b",
-      "type": "static",
-      "x": -6,
-      "z": 0.38,
-      "angle": 0,
-      "bands": [
-        "low",
-        "mid",
-        "high"
-      ],
-      "housing": "wall",
-      "poweredBy": "s1",
-      "note": 3
-    },
-    {
-      "id": "pulse-a",
+      "id": "arc-1",
       "type": "pulse",
-      "x": -6,
-      "z": -2.0,
-      "angle": 0,
+      "x": 9.6,
+      "z": 6.2,
+      "angle": 180,
       "bands": [
         "low",
         "mid",
@@ -222,119 +151,182 @@
         "duty": 0.5,
         "offset": 0
       },
-      "phase": "in",
-      "note": 4
-    },
-    {
-      "id": "sweep",
-      "type": "sweeper",
-      "x": 0.9,
-      "z": -3.0,
-      "angle": 0,
-      "bands": [
-        "mid"
-      ],
-      "housing": "post",
-      "sweep": {
-        "speed": 28
-      },
-      "range": 1.1,
-      "startOffset": 0.12,
-      "note": 6,
-      "phase": "in"
-    },
-    {
-      "id": "alarm",
-      "type": "static",
-      "x": 6,
-      "z": 1.8,
-      "angle": 180,
-      "bands": [
-        "high"
-      ],
-      "housing": "wall",
-      "threat": "disturbed",
-      "note": 2
-    },
-    {
-      "id": "alarm-2",
-      "type": "static",
-      "x": -6,
-      "z": 3.2,
-      "angle": 0,
-      "bands": [
-        "high"
-      ],
-      "housing": "wall",
-      "threat": "alert",
-      "note": 7
-    },
-    {
-      "id": "fan-hi",
-      "type": "sweeper",
-      "x": 2.5,
-      "z": -3.6,
-      "angle": 45,
-      "bands": [
-        "high"
-      ],
-      "housing": "none",
-      "phase": "out",
-      "spokes": 2,
-      "sweep": {
-        "speed": 14
-      },
-      "startOffset": 0.55,
-      "tint": "prism",
-      "note": 5
-    },
-    {
-      "id": "fan-mid",
-      "type": "sweeper",
-      "x": 2.5,
-      "z": -3.6,
-      "angle": 200,
-      "bands": [
-        "mid"
-      ],
-      "housing": "none",
-      "phase": "out",
-      "spokes": 2,
-      "sweep": {
-        "speed": -14
-      },
-      "startOffset": 0.55,
-      "tint": "prism",
       "note": 3,
-      "range": 2.4
+      "range": 19
+    },
+    {
+      "id": "arc-2",
+      "type": "pulse",
+      "x": -9.6,
+      "z": 4.6,
+      "angle": 0,
+      "bands": [
+        "low",
+        "mid",
+        "high"
+      ],
+      "housing": "wall",
+      "pulse": {
+        "period": 2,
+        "duty": 0.5,
+        "offset": 1
+      },
+      "note": 6,
+      "range": 19
     }
   ],
+  "belt": [
+    "splitter"
+  ],
+  "id": "mus-6",
+  "name": "The Grand Rotunda",
+  "headline": "GILDED MUSEUM STRIPPED OF ITS CROWN JEWEL",
+  "size": {
+    "w": 20,
+    "d": 20,
+    "h": 6.4
+  },
+  "outline": [
+    [
+      10.0,
+      4.142
+    ],
+    [
+      4.142,
+      10.0
+    ],
+    [
+      -4.142,
+      10.0
+    ],
+    [
+      -10.0,
+      4.142
+    ],
+    [
+      -10.0,
+      -4.142
+    ],
+    [
+      -4.142,
+      -10.0
+    ],
+    [
+      4.142,
+      -10.0
+    ],
+    [
+      10.0,
+      -4.142
+    ]
+  ],
+  "floors": 2,
+  "key": {
+    "root": "C",
+    "mode": "major"
+  },
+  "tempo": 116,
+  "tempoOut": 136,
+  "parTime": 85,
+  "note": "Every curator's fear, under one dome.",
+  "author": "The Board of Trustees",
+  "spawn": {
+    "x": 0.0,
+    "z": 9.0,
+    "facing": -90
+  },
+  "entry": {
+    "id": "entry",
+    "x": 0.0,
+    "z": 10.0,
+    "wall": "s",
+    "phase": "in"
+  },
   "exits": [
     {
-      "id": "east",
-      "x": 6,
+      "id": "dome",
+      "x": 0.0,
+      "z": -10.0,
+      "wall": "n",
+      "phase": "out",
+      "floor": 1
+    }
+  ],
+  "next": "mus-6g",
+  "stairs": [
+    {
+      "id": "st",
+      "x": -7.0,
       "z": 3.6,
-      "wall": "e",
-      "phase": "out"
+      "w": 1.4,
+      "d": 2.4,
+      "from": 0,
+      "to": 1
     },
     {
-      "id": "west",
-      "x": -6,
+      "id": "st-b",
+      "x": 7.0,
       "z": 3.6,
-      "wall": "w",
-      "phase": "out"
+      "w": 1.4,
+      "d": 2.4,
+      "from": 0,
+      "to": 1
+    }
+  ],
+  "shutters": [
+    {
+      "id": "inner",
+      "x": 0,
+      "z": 2.3,
+      "w": 1.6,
+      "d": 0.2,
+      "h": 1.1,
+      "opens": [
+        "A",
+        "B"
+      ]
+    }
+  ],
+  "plates": [
+    {
+      "id": "ring-n",
+      "x": 0,
+      "z": -1.5,
+      "w": 3.4,
+      "d": 1.0,
+      "alarm": true
+    },
+    {
+      "id": "ring-s",
+      "x": 0,
+      "z": 1.5,
+      "w": 3.4,
+      "d": 1.0,
+      "alarm": true
+    },
+    {
+      "id": "ring-e",
+      "x": 1.5,
+      "z": 0,
+      "w": 1.0,
+      "d": 2.0,
+      "alarm": true
+    },
+    {
+      "id": "ring-w",
+      "x": -1.5,
+      "z": 0,
+      "w": 1.0,
+      "d": 2.0,
+      "alarm": true
     }
   ],
   "prize": {
-    "kind": "diamond",
-    "x": 2.5,
-    "z": -3.6,
+    "kind": "crown",
+    "x": 0,
+    "z": 0,
+    "y": 1.45,
     "value": 5000000,
-    "name": "The Gilded Crown"
-  },
-  "belt": [
-    "mirror"
-  ],
-  "theme": "museum",
-  "sign": "THE GRAND ROTUNDA"
+    "name": "The Crown of the Gilded Museum"
+  }
 }

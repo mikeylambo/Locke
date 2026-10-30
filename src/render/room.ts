@@ -427,6 +427,18 @@ export class RoomView {
     const gold = this.mat("blockGold", () => goldMaterial(0.28, 0.1));
     const style = b.style ?? "plinth";
     if (style === "statue") return this.buildStatue(b, g);
+    if (style === "screen") {
+      // Marble screen wall with a gilt cap and fluting: the court's hedges.
+      const marble = this.mat("marble", () => new THREE.MeshStandardMaterial({ color: "#d8cfc0", roughness: 0.3, metalness: 0.05, envMapIntensity: 0.8 }));
+      const body = new THREE.Mesh(new THREE.BoxGeometry(b.w, b.h, b.d), marble);
+      body.position.y = b.h / 2;
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.05, 0.06, b.d + 0.05), this.brass());
+      cap.position.y = b.h + 0.03;
+      const sk = new THREE.Mesh(new THREE.BoxGeometry(b.w + 0.04, 0.1, b.d + 0.04), this.mat("blockDark", () => matteMaterial(P.charcoal.clone().multiplyScalar(0.55), 0.6)));
+      sk.position.y = 0.05;
+      g.add(body, cap, sk);
+      return g;
+    }
     if (style === "post") {
       const col = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, b.h, 16), dark);
       col.position.y = b.h / 2;

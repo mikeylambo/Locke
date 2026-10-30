@@ -1,0 +1,121 @@
+{
+  "venue": "gilded-museum",
+  "theme": "museum",
+  "blocks": [
+    {
+      "x": -2.15,
+      "z": -3.0,
+      "w": 3.7,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    },
+    {
+      "x": 0.7,
+      "z": -0.35,
+      "w": 2.6,
+      "d": 0.3,
+      "h": 1,
+      "style": "ledge"
+    }
+  ],
+  "mounts": [
+    {
+      "id": "h1",
+      "x": 0.0,
+      "z": -4.4,
+      "hook": true
+    },
+    {
+      "id": "h2",
+      "x": 2.6,
+      "z": 0.22,
+      "hook": true
+    }
+  ],
+  "sensors": [],
+  "emitters": [
+    {
+      "id": "drift-1",
+      "type": "pulse",
+      "x": 4.0,
+      "z": -1.9,
+      "angle": 180,
+      "bands": [
+        "mid"
+      ],
+      "housing": "wall",
+      "pulse": {
+        "period": 4,
+        "duty": 0.5,
+        "offset": 0
+      },
+      "note": 1,
+      "range": 5
+    },
+    {
+      "id": "drift-2",
+      "type": "pulse",
+      "x": -4.0,
+      "z": 2.6,
+      "angle": 0,
+      "bands": [
+        "mid"
+      ],
+      "housing": "wall",
+      "pulse": {
+        "period": 4,
+        "duty": 0.5,
+        "offset": 2
+      },
+      "note": 5
+    }
+  ],
+  "belt": [],
+  "id": "mus-a",
+  "name": "The Skylight Drop",
+  "view": "side",
+  "setPiece": true,
+  "headline": "A HAT FIRST, THEN A GENTLEMAN",
+  "size": {
+    "w": 8,
+    "d": 9,
+    "h": 1.2
+  },
+  "key": {
+    "root": "D",
+    "mode": "dorian"
+  },
+  "tempo": 96,
+  "parTime": 30,
+  "note": "Mind the gap between the roof and the floor. It is nine metres.",
+  "author": "Night Curator",
+  "spawn": {
+    "x": -3.4,
+    "z": -3.15,
+    "facing": 0
+  },
+  "entry": {
+    "id": "sky",
+    "x": -2.4,
+    "z": -4.5,
+    "wall": "n",
+    "phase": "in"
+  },
+  "exits": [
+    {
+      "id": "atrium",
+      "x": -2.8,
+      "z": 4.5,
+      "wall": "w",
+      "phase": "in"
+    }
+  ],
+  "prize": {
+    "kind": "crystal",
+    "x": 0,
+    "z": 0,
+    "value": 0,
+    "name": ""
+  }
+}

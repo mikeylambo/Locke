@@ -216,13 +216,13 @@ test("side view: gravity, catch a hook, climb, and run out of arm", () => {
   assert.ok(ev3.includes("escaped"));
 });
 
-test("side view: releasing the stretch while hooked yanks the body up after the arm", () => {
+test("side view: releasing the stretch with up held yanks the body up after the arm", () => {
   const r = new HeistRun(room({ view: "side", setPiece: true, size: { w: 8, d: 8, h: 1 }, spawn: { x: 0, z: 4, facing: 0 }, mounts: [{ id: "hk", x: 0, z: 1.2, hook: true }] }));
   steps(r, 10);
   steps(r, 200, () => ({ stretch: true }));
   assert.ok(r.locke.stretch.hook);
   let top = 9;
-  const ev = steps(r, 120, (rr) => { top = Math.min(top, rr.locke.pos.z); return {}; });
+  const ev = steps(r, 120, (rr) => { top = Math.min(top, rr.locke.pos.z); return { move: v2(0, -1) }; });
   assert.ok(ev.includes("rope.yank") && ev.includes("stretch.snap"));
   assert.ok(top < 2.4, `body flew up to the hook, top=${top}`);
 });

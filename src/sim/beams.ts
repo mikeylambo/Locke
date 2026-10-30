@@ -8,7 +8,7 @@ export const PRIZE_R = 0.28;
 export const UNFOLD_BEATS = 1.5;
 
 /** Columns, cabinets and pedestals are solid cover; rails only when the room marks them solid. */
-export const isSolid = (b: BlockDef) => b.solid ?? (b.style === "column" || b.style === "case" || b.style === "pedestal");
+export const isSolid = (b: BlockDef) => b.solid ?? (b.style === "column" || b.style === "case" || b.style === "pedestal" || b.style === "statue" || b.style === "screen");
 
 export interface PlacedOptic { mountId: string; kind: OpticKind; angle: number; fixed?: boolean; rotatable?: boolean }
 
@@ -29,6 +29,8 @@ export interface BeamSegment {
   spoke: number;
   /** Segment starts at a placed optic (reflected/split/retro light). */
   fromOptic?: boolean;
+  /** The mount of the optic this segment leaves from. */
+  opticMount?: string;
   floor: number;
   /** Vertical shaft through a grate (a = b): occupies every band. */
   vertical?: boolean;
@@ -221,8 +223,8 @@ export class BeamEngine {
   }
 
   private cast(e: EmitterDef, band: Band, o: V2, d: V2, w: BeamWorld, live: boolean, warn: number, spoke: number,
-    out: BeamSegment[], fed: Set<string>, floor = 0, depth = 0, travelled = 0, optic = false): void {
-    let origin = o, dir = d, s = travelled, fromOptic = optic;
+    out: BeamSegment[], fed: Set<string>, floor = 0, depth = 0, travelled = 0, optic = false, opticMount?: string): void {
+    let origin = o, dir = d, s = travelled, fromOptic = optic, mountOf = opticMount;
     let firstLeg = true;
     for (let bounce = depth; bounce < MAX_BOUNCES; bounce++) {
       const hit = this.nearest(origin, dir, band, w, floor);
@@ -230,7 +232,7 @@ export class BeamEngine {
       let endKind = hit.kind;
       if (firstLeg && e.range !== undefined && e.range < t) { t = e.range; endKind = "wall"; }
       const end = add(origin, scale(dir, t));
-      out.push({ emitter: e.id, band, a: origin, b: end, s0: s, tint: e.tint ?? (e.type === "camera" ? "camera" : "red"), type: e.type, live, warn, bounce, spoke, fromOptic, floor, hidden: e.hidden });
+      out.push({ emitter: e.id, band, a: origin, b: end, s0: s, tint: e.tint ?? (e.type === "camera" ? "camera" : "red"), type: e.type, live, warn, bounce, spoke, fromOptic, opticMount: mountOf, floor, hidden: e.hidden });
       s += t;
       firstLeg = false;
       if (!live) return; // a telegraph doesn't feed sensors or bounce power around
@@ -240,7 +242,7 @@ export class BeamEngine {
         const n = hit.normal;
         dir = norm(sub(dir, scale(n, 2 * dot(dir, n))));
         origin = add(end, scale(dir, 1e-4));
-        fromOptic = true;
+        fromOptic = true; mountOf = hit.optic?.mountId;
         const shift = hit.optic ? BAND_SHIFT[hit.optic.kind] : undefined;
         if (shift) { const nb = shiftBand(band, shift); if (!nb) return; band = nb; }
         const well = hit.optic ? this.mountDefs.get(hit.optic.mountId)?.well : undefined;
@@ -250,7 +252,7 @@ export class BeamEngine {
       if (endKind === "retro") {
         dir = scale(dir, -1);
         origin = add(end, scale(dir, 1e-4));
-        fromOptic = true;
+        fromOptic = true; mountOf = hit.optic?.mountId;
         continue;
       }
       if (endKind === "splitter" && hit.normal) {
@@ -259,9 +261,9 @@ export class BeamEngine {
         const refl = norm(sub(dir, scale(n, 2 * dot(dir, n))));
         const well = hit.optic ? this.mountDefs.get(hit.optic.mountId)?.well : undefined;
         // At a well, the reflected half drops through the grate; the straight half stays on this floor.
-        this.cast(e, band, add(end, scale(refl, 1e-4)), refl, w, live, warn, spoke, out, fed, well ?? floor, bounce + 1, s, true);
+        this.cast(e, band, add(end, scale(refl, 1e-4)), refl, w, live, warn, spoke, out, fed, well ?? floor, bounce + 1, s, true, hit.optic?.mountId);
         origin = add(end, scale(dir, 1e-3));
-        fromOptic = true;
+        fromOptic = true; mountOf = hit.optic?.mountId;
         continue;
       }
       return;
@@ -303,7 +305,7 @@ export class BeamEngine {
       }
     }
     for (const sn of this.room.sensors) {
-      if ((sn.floor ?? 0) !== floor) continue;
+      if ((sn.floor ?? 0) !== floor || (sn.band && sn.band !== band)) continue;
       const t = rayCircle(o, d, v2(sn.x, sn.z), SENSOR_R);
       if (t > 0 && t < best.t) best = { t, kind: "sensor", id: sn.id };
     }

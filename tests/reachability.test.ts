@@ -7,7 +7,9 @@ import { segSegDist, v2, type V2 } from "../src/sim/math2d";
 import type { RoomDef } from "../src/sim/roomTypes";
 
 const dir = new URL("../src/rooms/", import.meta.url);
-const rooms = readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(readFileSync(new URL(f, dir), "utf8")) as RoomDef);
+// Flat single-floor rooms. The v3 museum kit (floors, plates, shutters, fixed optics, side view) is proved by museum.test.ts.
+const v3 = (r: RoomDef) => !!(r.view === "side" || (r.floors ?? 1) > 1 || r.plates || r.shutters || r.fixedOptics || r.outline || r.emitters.some((e) => e.type === "pendulum" || e.type === "camera" || e.type === "projector"));
+const rooms = readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(readFileSync(new URL(f, dir), "utf8")) as RoomDef).filter((r) => !v3(r));
 const WALL_R: Record<Pose, number> = { stand: 0.28, crouch: 0.32, flatten: 0.16 };
 const POSES: Pose[] = ["stand", "crouch", "flatten"];
 const BANDS = { stand: ["low", "mid", "high"], crouch: ["low", "mid"], flatten: ["low", "mid", "high"] } as const;

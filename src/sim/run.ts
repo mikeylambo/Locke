@@ -325,7 +325,7 @@ export class HeistRun {
     S.length += amount;
     // Grab the prize at range.
     if (!this.room.setPiece && !this.prizeLifted && (this.room.prize.floor ?? 0) === this.locke.floor && dist(next, this.prizePos) < 0.5) this.grabPrize();
-    if (this.side) for (const m of this.room.mounts) if (m.hook && dist(next, v2(m.x, m.z)) < 0.32) { this.catchHook(m.id); return; }
+    if (this.side) for (const m of this.room.mounts) if (m.hook && dist(next, v2(m.x, m.z)) < 0.45) { this.catchHook(m.id); return; }
   }
 
   private handBlocked(p: V2): boolean {
@@ -410,7 +410,7 @@ export class HeistRun {
   /** Mount the interact button would act on, if any. */
   targetMount(): string | null {
     const L = this.locke, S = L.stretch;
-    const from = S.active && S.points.length > 1 ? S.points[S.points.length - 1]! : L.pos;
+    const from = S.active && S.points.length > 1 ? S.points[S.points.length - 1]! : this.side ? this.sideShoulder() : L.pos;
     const maxD = S.active ? 0.65 : 1.45;
     let best: string | null = null, bestD = maxD;
     for (const m of this.room.mounts) {
@@ -431,6 +431,7 @@ export class HeistRun {
       const op = this.optics.find((o) => o.mountId === mount);
       if (op && (!op.fixed || op.rotatable)) {
         op.angle = (op.angle + 15 * input.rotate + 360) % 360;
+        this.turning = mount; this.turnTick = this.tick;
         this.emit({ type: "optic.rotate", mountId: mount, angle: op.angle });
       }
     }
@@ -528,8 +529,13 @@ export class HeistRun {
 
   /** Light that a placed optic just redirected is harmless right next to that optic. */
   private opticGrace(seg: BeamSegment): boolean {
-    return !!seg.fromOptic && dist(this.locke.pos, seg.a) < OPTIC_GRACE;
+    if (!seg.fromOptic) return false;
+    if (dist(this.locke.pos, seg.a) < OPTIC_GRACE) return true;
+    // Light swinging off the mirror he's turning by hand can't catch him: aiming is never a trap.
+    return !!seg.opticMount && seg.opticMount === this.turning && this.tick - this.turnTick < SIM_HZ * 0.6 && dist(this.locke.pos, seg.a) < 2.2;
   }
+  private turning: string | null = null;
+  private turnTick = -9999;
 
   private checkContacts() {
     if (this.phase !== "in" && this.phase !== "out") return;
@@ -607,6 +613,20 @@ export class HeistRun {
     for (const sh of this.room.shutters ?? []) if ((sh.floor ?? 0) === this.locke.floor && (this.shutterOpen[sh.id] ?? 0) < 0.9) out.push(sh);
     return out;
   }
+
+  /** Can Locke's body (wall radius for the pose) stand at p on his current floor? For planners and tests. */
+  canStand(p: V2, pose: Pose): boolean {
+    const r = WALL_RADIUS[pose];
+    if (!this.insideRoom(p, r - 1e-3)) return false;
+    for (const b of this.collidersHere()) {
+      const cx = clamp(p.x, b.x - b.w / 2, b.x + b.w / 2), cz = clamp(p.z, b.z - b.d / 2, b.z + b.d / 2);
+      if (Math.hypot(p.x - cx, p.z - cz) < r) return false;
+    }
+    return true;
+  }
+
+  /** Is p on top of a plinth on his floor? */
+  raisedAt(p: V2): boolean { return this.blocksHere().some((b) => b.stand && Math.abs(p.x - b.x) < b.w / 2 && Math.abs(p.z - b.z) < b.d / 2); }
 
   insideRoom(p: V2, margin: number): boolean {
     const poly = this.beams.outline;
@@ -712,9 +732,10 @@ export class HeistRun {
         const sh = this.sideShoulder();
         const d = dist(sh, H);
         const step = 9 * DT;
+        L.grounded = false;
         if (d <= step + 0.05) {
           S.yank = false; S.hook = null; S.active = false; S.points = []; S.length = 0;
-          L.vel = v2(input.move.x * 1.5, -2.2);
+          L.vel = v2(input.move.x * 2.0, -2.4);
           this.emit({ type: "stretch.snap" });
         } else {
           const k = step / d;
@@ -726,9 +747,10 @@ export class HeistRun {
         return;
       }
       if (!input.stretch || locked) {
-        // Let go of the button while hanging: reel the body up to the hook.
-        S.yank = true;
-        this.emit({ type: "rope.yank" });
+        // Release with up held: the arm reels the body up after it. Release otherwise: he lets go.
+        if (input.move.z < -0.3 && !locked) { S.yank = true; this.emit({ type: "rope.yank" }); return; }
+        S.hook = null; S.active = false; S.points = []; S.length = 0; S.rope = 0;
+        this.emit({ type: "rope.letgo" });
         return;
       }
       if (input.move.z < -0.3) S.rope = Math.max(0.35, S.rope - 1.5 * DT);
