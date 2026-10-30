@@ -844,7 +844,8 @@ export class RoomView {
     const mat = glowMaterial(pl.alarm ? P.laser : P.gold, 0.4);
     const rim = new THREE.Mesh(new THREE.BoxGeometry(pl.w + 0.06, 0.02, pl.d + 0.06), this.brass());
     rim.position.set(pl.x, y + 0.01, pl.z);
-    const top = new THREE.Mesh(new THREE.BoxGeometry(pl.w, 0.025, pl.d), this.mat("plateTop", () => new THREE.MeshStandardMaterial({ color: "#2b2420", metalness: 0.6, roughness: 0.35 })));
+    // Polished brass-and-marble tile, a hair proud of the floor: it should read as part of the floor until it matters.
+    const top = new THREE.Mesh(new THREE.BoxGeometry(pl.w, 0.025, pl.d), this.mat("plateTop", () => new THREE.MeshStandardMaterial({ color: "#6b5a44", metalness: 0.55, roughness: 0.3, envMapIntensity: 0.9 })));
     top.position.set(pl.x, y + 0.024, pl.z);
     const seam = new THREE.Mesh(new THREE.RingGeometry(Math.min(pl.w, pl.d) * 0.28, Math.min(pl.w, pl.d) * 0.32, 32), mat);
     seam.rotation.x = -Math.PI / 2; seam.position.set(pl.x, y + 0.038, pl.z);

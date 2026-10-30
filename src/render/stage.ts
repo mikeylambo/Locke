@@ -156,7 +156,12 @@ export class Stage {
   snap() { if (this.side) return; this.yawTarget = Math.round(this.yawTarget / (Math.PI / 4)) * (Math.PI / 4); }
   snapStep(dir: number) { if (this.side) return; this.yawTarget = (Math.round(this.yawTarget / (Math.PI / 4)) + dir) * (Math.PI / 4); }
 
-  setDist(d: number) { this.baseDist = d; this.resize(); }
+  /** Fog scales with the framing so long galleries don't drown in it. */
+  setDist(d: number) {
+    this.baseDist = d; this.resize();
+    const fog = this.scene.fog as THREE.Fog;
+    fog.near = Math.max(20, d * 1.25); fog.far = Math.max(36, d * 2.3);
+  }
 
   focus(x: number, z: number, weight: number, y = 0.4) {
     if (this.pin) { this.targetGoal.set(this.pin.x, this.pin.y ?? 0.6, this.pin.z); return; }
