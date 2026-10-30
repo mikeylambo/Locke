@@ -204,7 +204,7 @@ export class UI {
     this.hud.dataset.threat = String(s.threat);
     const beltHtml = [0, 1, 2, 3].map((i) => {
       const k = s.belt[i];
-      return `<span class="slot ${k ? "full" : ""} ${i === s.selected && k ? "sel" : ""}">${k ? ICON[k] : ""}</span>`;
+      return `<span class="slot ${k ? "full" : ""} ${i === s.selected && k ? "sel" : ""}">${k ? ICON[k as "mirror"] ?? ICON.mirror : ""}</span>`;
     }).join("");
     if (this.beltEl.dataset.k !== beltHtml) { this.beltEl.innerHTML = beltHtml; this.beltEl.dataset.k = beltHtml; }
     this.meterEl.classList.toggle("show", s.stretch !== null);
