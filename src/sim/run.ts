@@ -15,6 +15,8 @@ export const POSE_RADIUS: Record<Pose, number> = { stand: 0.26, crouch: 0.3, fla
 export const HIT_SCALE = 0.7;
 /** Beams leaving a placed optic can't touch Locke within about one body-width of it. */
 export const OPTIC_GRACE = 0.55;
+/** Within this of a beam (from the silhouette) without touching counts as a near-miss. */
+export const NEAR_MISS = 0.06;
 const POSE_SPEED: Record<Pose, number> = { stand: 2.25, crouch: 1.25, flatten: 0.95 };
 const WALL_RADIUS: Record<Pose, number> = { stand: 0.28, crouch: 0.32, flatten: 0.16 };
 
@@ -59,7 +61,8 @@ export type SimEvent =
   | { type: "escaped"; exit: string }
   | { type: "lockdown" }
   | { type: "restart" }
-  | { type: "deny" };
+  | { type: "deny" }
+  | { type: "nearMiss"; emitter: string; clearance: number };
 
 export interface Stretch {
   active: boolean;
@@ -113,6 +116,7 @@ export class HeistRun {
   lockdownTimer = 0;
   escapedVia = "";
   private fed = new Set<string>();
+  private nearCooldown: Record<string, number> = {};
   private events: SimEvent[] = [];
 
   constructor(readonly room: RoomDef) {
@@ -464,6 +468,7 @@ export class HeistRun {
     const L = this.locke;
     const shapes = this.bodyShapes();
     let hit: { at: V2; emitter: string } | null = null;
+    let near: { emitter: string; c: number } | null = null;
     for (const seg of this.frame.segments) {
       if (!seg.live) continue;
       for (const sh of shapes) {
@@ -471,8 +476,13 @@ export class HeistRun {
         const d = segSegDist(sh.a, sh.b, seg.a, seg.b);
         const c = d - sh.r;
         if (c < 1.5 && c > 0 && c < this.clearance) this.clearance = c;
+        if (c > 0 && c < NEAR_MISS && d - sh.r * HIT_SCALE > 0 && sh.r > ARM_R && !near) near = { emitter: seg.emitter, c };
         if (d - sh.r * HIT_SCALE <= 0 && !hit && !this.opticGrace(seg)) hit = { at: closestOnSeg(sh.a, seg.a, seg.b), emitter: seg.emitter };
       }
+    }
+    if (!hit && near && (this.nearCooldown[near.emitter] ?? 0) < this.tick) {
+      this.nearCooldown[near.emitter] = this.tick + SIM_HZ;
+      this.emit({ type: "nearMiss", emitter: near.emitter, clearance: near.c });
     }
     if (hit && L.grace <= 0) {
       this.threat = Math.min(this.room.forgiving ? 1 : 3, this.threat + 1);

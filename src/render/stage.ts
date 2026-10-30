@@ -12,9 +12,10 @@ export type Quality = "cinematic" | "balanced" | "performance";
 
 interface TierSpec { pr: number; bloomScale: number; bloomOn: boolean; tilt: boolean; msaa: number; vignette: boolean }
 export const TIERS: Record<Quality, TierSpec> = {
-  cinematic: { pr: 1.5, bloomScale: 0.5, bloomOn: true, tilt: true, msaa: 4, vignette: false },
-  balanced: { pr: 1.5, bloomScale: 0.5, bloomOn: true, tilt: false, msaa: 0, vignette: true },
-  performance: { pr: 1, bloomScale: 0.35, bloomOn: true, tilt: false, msaa: 0, vignette: true }
+  // Tilt-shift is gone everywhere: it smeared beams off the focus line. Depth comes from fog + vignette.
+  cinematic: { pr: 2, bloomScale: 0.5, bloomOn: true, tilt: false, msaa: 4, vignette: true },
+  balanced: { pr: 2, bloomScale: 0.5, bloomOn: true, tilt: false, msaa: 0, vignette: true },
+  performance: { pr: 1.5, bloomScale: 0.35, bloomOn: true, tilt: false, msaa: 0, vignette: true }
 };
 
 /** Pick a tier once, at load. Never changed mid-run except by the player in Settings. */
@@ -89,7 +90,7 @@ export class Stage {
     this.composer = new EffectComposer(this.renderer, rt);
     this.passNames = ["scene"];
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.45, 1.15);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.65, 0.28, 1.15);
     if (t.bloomOn) { this.composer.addPass(this.bloom); this.passNames.push("bloom"); }
     this.hTilt = new ShaderPass(HorizontalTiltShiftShader);
     this.vTilt = new ShaderPass(VerticalTiltShiftShader);

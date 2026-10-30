@@ -481,6 +481,7 @@ export class Game {
         this.locke.react("surprised", 1.2);
         this.audio.play("contact", { pan });
         this.beams.flash.set(e.emitter, 0.45);
+        this.beams.tripped.set(e.emitter, 1.8);
         this.stage.kick(1);
         this.ui.flash("contact");
         this.input.rumble(0.8, 220);
@@ -517,6 +518,7 @@ export class Game {
       case "restart":
         if (this.mode === "caught") this.restart();
         break;
+      case "nearMiss": this.beams.sizzle.set(e.emitter, 0.35); this.audio.play("sizzle", { pan }); break;
       case "exit.closed": this.audio.play("exit.closed"); this.ui.toast("Exit sealed"); break;
       default: this.audio.play(e.type, { pan });
     }

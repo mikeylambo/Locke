@@ -557,6 +557,7 @@ export class AudioEngine {
         this.play("shutter");
         break;
       }
+      case "sizzle": this.burst(7500, 6, 0.12, 0.05, this.sfxBus, t, pan); this.blip(2600, 0.06, 0.012, "sawtooth", this.sfxBus, t, 3400); break;
       case "puff": {
         // A slow draw, then the exhale.
         this.burst(900, 0.6, 0.45, 0.035, this.sfxBus, t + 0.45);

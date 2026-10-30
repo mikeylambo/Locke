@@ -14,7 +14,7 @@ varying vec2 vC; varying vec3 vColor; varying float vI; varying float vDash; var
 void main(){
   vec3 P = mix(iA, iB, corner.x);
   // Never thinner than ~1.5 px: beams are gameplay and must survive every quality tier.
-  float minW = distance(uCam, P) * uPix * (iParams.w > 0.5 ? 3.0 : 1.5);
+  float minW = distance(uCam, P) * uPix * (iParams.w > 0.5 ? 3.0 : (iParams.x < 0.02 ? 2.2 : 1.5));
   float w = max(iParams.x, minW);
   vec3 dir = normalize(iB - iA + vec3(1e-5));
   vec3 side;
@@ -28,16 +28,25 @@ void main(){
 
 const frag = /* glsl */ `
 uniform float uTime;
+uniform float uLayer; // 0 = hard core, 1 = glow, 2 = floor wash
 varying vec2 vC; varying vec3 vColor; varying float vI; varying float vDash; varying float vAlong; varying float vFlat;
 void main(){
   float across = abs(vC.y);
-  float prof = vFlat > 0.5 ? pow(1.0 - across, 2.5) : exp(-across * across * 6.0) * (1.0 - across);
+  float prof;
+  if (uLayer < 0.5) {
+    // Hard core: flat-topped with a one-pixel antialiased edge, plus a white-hot centre line.
+    float aa = max(fwidth(across) * 1.25, 1e-3);
+    prof = 1.0 - smoothstep(0.62 - aa, 0.62 + aa, across);
+  } else if (vFlat > 0.5) prof = pow(1.0 - across, 2.5);
+  else prof = exp(-across * across * 5.0) * (1.0 - across);
   float shimmer = 0.92 + 0.08 * sin(uTime * 37.0 + vAlong * 9.0);
   float dash = 1.0;
   if (vDash > 0.0) dash = step(0.5, fract(vAlong * vDash - uTime * 2.0));
   // Fade the very ends so emitters/impacts read as points of light.
   float ends = smoothstep(0.0, 0.02, vC.x) * (1.0 - smoothstep(0.98, 1.0, vC.x));
-  vec3 c = vColor * vI * prof * shimmer * dash * mix(1.0, ends, 0.6);
+  vec3 col = vColor;
+  if (uLayer < 0.5) col = mix(vColor, vec3(1.0), (1.0 - smoothstep(0.0, 0.35, across)) * 0.55);
+  vec3 c = col * vI * prof * shimmer * dash * mix(1.0, ends, 0.6);
   gl_FragColor = vec4(c, 1.0);
 }`;
 
@@ -50,6 +59,10 @@ export class BeamView {
   private flarePos: Float32Array;
   private flareCol: Float32Array;
   flash = new Map<string, number>();
+  /** Beams that caught Locke: held bright and pulsing so the player sees what tripped them. */
+  tripped = new Map<string, number>();
+  /** Near-misses: a quick hot flicker on the beam he just slipped past. */
+  sizzle = new Map<string, number>();
   private tmp = new THREE.Color();
 
   constructor() {
@@ -64,7 +77,7 @@ export class BeamView {
       geo.setAttribute("iParams", new THREE.InstancedBufferAttribute(p, 4).setUsage(THREE.DynamicDrawUsage));
       geo.setAttribute("iS0", new THREE.InstancedBufferAttribute(s, 1).setUsage(THREE.DynamicDrawUsage));
       geo.instanceCount = 0;
-      const mat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: vert, fragmentShader: frag, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
+      const mat = new THREE.ShaderMaterial({ uniforms: { ...this.uniforms, uLayer: { value: i } }, vertexShader: vert, fragmentShader: frag, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.frustumCulled = false;
       mesh.renderOrder = 5 + i;
@@ -99,14 +112,16 @@ export class BeamView {
 
   update(segments: BeamSegment[], dt: number, time: number) {
     this.uniforms.uTime.value = time;
-    for (const [k, v] of this.flash) { const n = v - dt; if (n <= 0) this.flash.delete(k); else this.flash.set(k, n); }
+    for (const m of [this.flash, this.tripped, this.sizzle]) for (const [k, v] of m) { const n = v - dt; if (n <= 0) m.delete(k); else m.set(k, n); }
     const [core, glow, floor] = this.layers as [typeof this.layers[0], typeof this.layers[0], typeof this.layers[0]];
     let n = 0, f = 0;
     for (const seg of segments) {
       if (n >= MAX) break;
       const y = BAND_Y[seg.band];
       const col = this.colorFor(seg, time, this.tmp);
-      const fl = this.flash.get(seg.emitter) ?? 0;
+      const tr = this.tripped.get(seg.emitter) ?? 0;
+      const sz = this.sizzle.get(seg.emitter) ?? 0;
+      const fl = Math.max(this.flash.get(seg.emitter) ?? 0, tr > 0 ? 0.25 + 0.2 * Math.abs(Math.sin(time * 14)) : 0, sz > 0 ? (Math.sin(time * 90) > 0 ? 0.3 : 0.1) * Math.min(1, sz * 4) : 0);
       const warnOnly = !seg.live;
       const intensity = warnOnly ? 0.35 + seg.warn * 0.9 : 1;
       const pattern = !this.patterns ? 0 : seg.type === "pulse" ? 3.5 : seg.type === "sweeper" ? (seg.tint === "prism" ? 0 : 12) : seg.type === "oscillator" ? 6 : 0;
@@ -114,8 +129,8 @@ export class BeamView {
       const whiten = Math.min(1, fl * 3);
       const cr = col.r + (1 - col.r) * whiten, cg = col.g + (1 - col.g) * whiten, cb = col.b + (1 - col.b) * whiten;
       for (const [L, width, inten, flat, yy] of [
-        [core, 0.009, 9, 0, y],
-        [glow, 0.05, 0.42, 0, y],
+        [core, 0.008, 7, 0, y],
+        [glow, 0.075, 0.3, 0, y],
         [floor, 0.32, 0.22 * (1.6 - y * 0.5), 1, 0.012]
       ] as const) {
         L.a[n * 3] = seg.a.x; L.a[n * 3 + 1] = yy; L.a[n * 3 + 2] = seg.a.z;
