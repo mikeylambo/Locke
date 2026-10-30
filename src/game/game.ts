@@ -17,7 +17,11 @@ import { UI, type MenuItem } from "../ui/ui";
 import { CAMPAIGN, isTutorial, loadRoom } from "./rooms";
 import { lineFor } from "./lines";
 import VENUES_JSON from "../content/venues.json";
-const VENUES = VENUES_JSON as unknown as Record<string, { title: string; cards: string[] }>;
+const VENUES = VENUES_JSON as unknown as Record<string, { title: string; cards: string[] }> & { rooms?: Record<string, { title: string; cards: string[] }> };
+/** Running order of the museum night: lettered set pieces between numbered rooms. */
+const MAP_TAGS: Record<string, string> = { "mus-a": "A", "room-zero": "1", "mus-2": "2", "mus-3": "3", "mus-b": "B", "mus-4": "4", "mus-5": "5", "mus-6": "6" };
+const SET_PIECES = new Set(["mus-a", "mus-b"]);
+const ROOM_CARDS = (VENUES_JSON as unknown as { rooms?: Record<string, { title: string; cards: string[] }> }).rooms ?? {};
 const ROOM_NAMES = Object.fromEntries(Object.entries(import.meta.glob<{ name: string }>("../rooms/*.json", { eager: true, import: "default" })).map(([k, v]) => [k.replace("../rooms/", "").replace(".json", ""), v.name]));
 
 interface Settings {
@@ -199,7 +203,8 @@ export class Game {
     this.room = def;
     const side = def.view === "side";
     this.stage.lockSide(side);
-    this.stage.setDist(side ? 15 * Math.max(def.size.w / 13, def.size.d / 7.5, 0.62) : 15 * Math.max(def.size.w / 12, def.size.d / 9, 0.62) * (def.floors && def.floors > 1 ? 1.12 : 1));
+    // Side view frames the whole plane: height (vertical fov 30°) and width (16:9) both fit.
+    this.stage.setDist(side ? Math.max((def.size.d + 2) * 1.87, (def.size.w + 1.5) * 1.05) : 15 * Math.max(def.size.w / 12, def.size.d / 9, 0.62) * (def.floors && def.floors > 1 ? 1.12 : 1));
     this.audio.setRoom(def);
     this.rebuildRoom();
     this.newRun();
@@ -229,6 +234,7 @@ export class Game {
     this.prize.group.position.copy(this.prize.restPos);
     this.quipSaid.clear();
     this.quipT = 0;
+    this.rewindCoach = 0;
     this.wasFlat = false;
     // The feather gag carries across the night.
     if (this.learned.has("feather-lost") && !this.learned.has("feather-back")) this.locke.dropFeather();
@@ -255,7 +261,7 @@ export class Game {
     // Funhouse mirrors: catch sight of himself in warped glass.
     if (r.optics.some((o) => (o.kind === "concave" || o.kind === "convex") && dist(L.pos, this.room.mounts.find((m) => m.id === o.mountId)!) < 1.3)) this.quip("reflection", 2.6);
     // Portraits and statues: anything in the room's "watchers" list.
-    if (this.room.blocks.some((b) => b.style === "statue" && dist(L.pos, b) < 1.6) && this.roomView.statueFeathers.some((f) => f.visible)) this.quip("statue-see", 2.4);
+    if (this.room.blocks.some((b) => b.holds === "feather" && dist(L.pos, b) < 1.6) && this.roomView.statueFeathers.some((f) => f.visible)) this.quip("statue-see", 2.4);
   }
 
   private toTitle(fromPress = false) {
@@ -278,7 +284,7 @@ export class Game {
     const groups = [
       { title: VENUES.jobs!.title, rooms: rooms.filter((r) => isTutorial(r.id)) },
       { title: VENUES["gilded-museum"]!.title, rooms: rooms.filter((r) => !isTutorial(r.id)) }
-    ].map((g) => ({ title: g.title, rooms: g.rooms.map((r) => ({ id: r.id, name: ROOM_NAMES[r.id] ?? r.id, grade: this.progress.rooms[r.id]?.bestGrade, locked: !unlocked(r.i) })) }));
+    ].map((g) => ({ title: g.title, rooms: g.rooms.map((r) => ({ id: r.id, name: ROOM_NAMES[r.id] ?? r.id, grade: this.progress.rooms[r.id]?.bestGrade, locked: !unlocked(r.i), tag: MAP_TAGS[r.id], setPiece: SET_PIECES.has(r.id) })) }));
     this.ui.heistMap(groups, (id) => void this.playRoom(id), () => this.ui.close());
   }
 
@@ -288,10 +294,17 @@ export class Game {
     const venue = isTutorial(id) ? "jobs" : this.room.venue;
     const seen = `venue:${venue}`;
     const card = VENUES[venue];
-    if (card && !this.learned.has(seen)) {
-      this.learn(seen);
+    const rc = ROOM_CARDS[id], rseen = `room-card:${id}`;
+    // Silent-film cards: the venue's the first time in, then each room's (set pieces too).
+    const venueCards = card && !this.learned.has(seen) ? card : null;
+    const roomCards = rc && !this.learned.has(rseen) ? rc : null;
+    if (venueCards || roomCards) {
+      if (venueCards) this.learn(seen);
+      if (roomCards) this.learn(rseen);
       this.ui.closeAll();
-      this.ui.intertitle(card.title, card.cards, () => this.startPlay());
+      const title = venueCards ? venueCards.title : roomCards!.title;
+      const cards = [...(venueCards?.cards ?? []), ...(roomCards ? (venueCards ? [roomCards.title, ...roomCards.cards] : roomCards.cards) : [])];
+      this.ui.intertitle(title, cards, () => this.startPlay());
       return;
     }
     this.startPlay();
@@ -308,6 +321,13 @@ export class Game {
     const keep = this.chainFrom;
     this.loadRoom(def);
     this.chainFrom = keep;
+    const rc = ROOM_CARDS[id];
+    if (rc && !this.learned.has(`room-card:${id}`)) {
+      this.learn(`room-card:${id}`);
+      this.ui.closeAll();
+      this.ui.intertitle(rc.title, rc.cards, () => { this.startPlay(); this.rewinds = keep.rewinds; });
+      return;
+    }
     this.startPlay();
     this.rewinds = keep.rewinds;
     this.ui.toast("The getaway");
@@ -320,6 +340,7 @@ export class Game {
     this.newRun();
     this.ui.showHud(true);
     this.stage.snap();
+    if (this.room.view === "side") { this.stage.focus(this.run.locke.pos.x, 0, 0.2, this.room.size.d / 2); this.stage.cut(); }
     this.inputGrace = 0.35;
   }
 
@@ -401,7 +422,7 @@ export class Game {
         }
       }
       const Lk = this.run.locke;
-      if (this.room.view === "side") this.stage.focus(Lk.pos.x, 0, 0.55, this.room.size.d / 2 - Lk.pos.z + 0.7);
+      if (this.room.view === "side") this.stage.focus(Lk.pos.x, 0, 0.2, this.room.size.d / 2 + (this.room.size.d / 2 - Lk.pos.z - this.room.size.d / 2) * 0.25);
       else this.stage.focus(Lk.pos.x, Lk.pos.z, 0.3, 0.4 + this.roomView.space.floorY(Lk.floor) + (Lk.raised ? 0.45 : 0));
       this.stage.overhead(this.run.obscura);
     } else if (this.mode === "paused") {
@@ -594,7 +615,7 @@ export class Game {
       case "land": this.locke.boing(Math.min(1.6, e.speed / 4)); this.audio.play("land", { pan }); this.stage.kick(Math.min(0.5, e.speed / 12)); if (e.speed > 4.5) this.quip("land", 2.0); break;
       case "deny": {
         // The statue in the Sculpture Court has his feather. He takes it back.
-        const st = this.room.blocks.find((b) => b.style === "statue" && dist(L.pos, b) < 1.4);
+        const st = this.room.blocks.find((b) => b.holds === "feather" && dist(L.pos, b) < 1.4);
         if (st && this.roomView.statueFeathers.some((f) => f.visible)) {
           for (const f of this.roomView.statueFeathers) f.visible = false;
           this.locke.restoreFeather();
@@ -710,6 +731,8 @@ export class Game {
     for (const e of this.room.emitters) if (e.type === "sweeper" || e.type === "camera" || e.type === "projector") sweepAngles[e.id] = sweepAngle(r.prizeLifted && e.out ? { ...e, ...e.out } : e, r.sweep[e.id] ?? 0);
     const warn: Record<string, number> = {};
     for (const sg of frame.segments) if (!sg.live && sg.warn > (warn[sg.emitter] ?? 0)) warn[sg.emitter] = sg.warn;
+    this.beams.focusFloor = L.floor;
+    this.roomView.setFloorFocus(L.floor);
     this.beams.reveal += ((r.obscura ? 1 : r.obscuraSeen ? 0.3 : 0) - this.beams.reveal) * (1 - Math.exp(-dt * 5));
     const target = r.targetMount();
     const playing = this.mode === "play";

@@ -1,5 +1,5 @@
 {
-  "_doc": "Locke's lines, keyed by room id then trigger. 'default' covers every room. Fields: text (shown beside Locke), glyph (input action whose button is shown small beside it; omit for none), clip (optional URL of a recorded line, e.g. /audio/vo/tut-a-move.ogg), hum (placeholder vocal when no clip: hum | grunt | chuckle | tsk). Triggers: taunt (teaches the taunt once the prize is in hand), taunt-say (said while puffing), orbit, move, stretch, flatten, sidle, place, rotate, crouch, lift, contact, fumble, rewind, escape.",
+  "_doc": "Locke's lines, keyed by room id then trigger. 'default' covers every room. Fields: text (shown beside Locke), glyph (input action whose button is shown small beside it; omit for none), clip (optional URL of a recorded line, e.g. /audio/vo/tut-a-move.ogg), hum (placeholder vocal when no clip: hum | grunt | chuckle | tsk). Triggers: entry (casing, once per attempt), nearMiss, alarm, clean (lift with no alarms), getaway, contact, plus room moments (feather, feather-back, statue-see, letgo, yank, land, overshoot, peel, reflection). taunt (teaches the taunt once the prize is in hand), taunt-say (said while puffing), orbit, move, stretch, flatten, sidle, place, rotate, crouch, lift, contact, fumble, rewind, escape.",
   "default": {
     "orbit": {
       "text": "Case the joint first. Clock's not running.",
@@ -46,8 +46,8 @@
       "hum": "chuckle"
     },
     "contact": {
-      "text": "Hot. Noted.",
-      "hum": "tsk"
+      "text": "Ah. That one had my number.",
+      "hum": "grunt"
     },
     "fumble": {
       "text": "Let's take that again, from the top.",
@@ -71,6 +71,34 @@
     "taunt-say": {
       "text": "Don't rush art.",
       "hum": "chuckle"
+    },
+    "entry": {
+      "text": "Evening. Let's not keep the treasure waiting.",
+      "hum": "hum"
+    },
+    "nearMiss": {
+      "text": "Close shave. I'd shaved already.",
+      "hum": "tsk"
+    },
+    "alarm": {
+      "text": "Now they're paying attention.",
+      "hum": "grunt"
+    },
+    "clean": {
+      "text": "Not a whisker out of place.",
+      "hum": "chuckle"
+    },
+    "getaway": {
+      "text": "Exit, stage left.",
+      "hum": "chuckle"
+    },
+    "overshoot": {
+      "text": "Whoa, too much arm.",
+      "hum": "grunt"
+    },
+    "peel": {
+      "text": "And unstick.",
+      "hum": "hum"
     }
   },
   "tut-a": {
@@ -106,6 +134,310 @@
       "text": "Now this is a museum.",
       "glyph": "move",
       "hum": "hum"
+    },
+    "entry": {
+      "text": "A diamond needs no guard but the dark. Then again, I like the dark.",
+      "hum": "hum"
+    },
+    "nearMiss": {
+      "text": "Missed me by a cufflink.",
+      "hum": "tsk"
+    },
+    "alarm": {
+      "text": "Someone's awake upstairs.",
+      "hum": "grunt"
+    },
+    "clean": {
+      "text": "The Hope of Midnight. Hope rewarded.",
+      "hum": "chuckle"
+    },
+    "getaway": {
+      "text": "Good night, Night Curator.",
+      "hum": "chuckle"
+    },
+    "contact": {
+      "text": "Clumsy. The diamond's embarrassed for me.",
+      "hum": "grunt"
+    },
+    "overshoot": {
+      "text": "Long reach. Long night.",
+      "hum": "grunt"
+    }
+  },
+  "mus-a": {
+    "entry": {
+      "text": "Midnight on Fifth Avenue. Hat first.",
+      "hum": "hum"
+    },
+    "move": {
+      "text": "Mind the gap: nine metres of it.",
+      "hum": "hum"
+    },
+    "nearMiss": {
+      "text": "The beams are slow. I'm slower. On purpose.",
+      "hum": "tsk"
+    },
+    "alarm": {
+      "text": "They'll hear that on Madison.",
+      "hum": "grunt"
+    },
+    "contact": {
+      "text": "Dangling and spotted. Undignified.",
+      "hum": "grunt"
+    },
+    "letgo": {
+      "text": "Arm's done. A foot to go. …Fine.",
+      "hum": "grunt"
+    },
+    "land": {
+      "text": "Stuck the landing. Mostly.",
+      "hum": "chuckle"
+    },
+    "yank": {
+      "text": "Up we go.",
+      "hum": "grunt"
+    },
+    "getaway": {
+      "text": "In like a cat burglar. Which I am.",
+      "hum": "chuckle"
+    }
+  },
+  "mus-2": {
+    "entry": {
+      "text": "Keep time, or be kept. A conductor with a sense of humour.",
+      "hum": "hum"
+    },
+    "nearMiss": {
+      "text": "On the beat. Barely.",
+      "hum": "tsk"
+    },
+    "feather": {
+      "text": "…That was a good feather.",
+      "hum": "tsk"
+    },
+    "alarm": {
+      "text": "Off the beat. Badly.",
+      "hum": "grunt"
+    },
+    "clean": {
+      "text": "And a one, and a two, and a sapphire.",
+      "hum": "chuckle"
+    },
+    "getaway": {
+      "text": "Faster now. The band's warmed up.",
+      "hum": "chuckle"
+    },
+    "contact": {
+      "text": "Missed my cue.",
+      "hum": "grunt"
+    },
+    "lift": {
+      "text": "Tempo's going up. So am I: out.",
+      "hum": "hum"
+    }
+  },
+  "mus-3": {
+    "entry": {
+      "text": "Madame Verre. Every mirror a little liar.",
+      "hum": "hum"
+    },
+    "reflection": {
+      "text": "Nine feet tall. I'd always suspected.",
+      "hum": "chuckle"
+    },
+    "nearMiss": {
+      "text": "The camera blinked first.",
+      "hum": "tsk"
+    },
+    "alarm": {
+      "text": "Caught in my own reflection. Typical.",
+      "hum": "grunt"
+    },
+    "clean": {
+      "text": "Mirror stays. I go.",
+      "hum": "chuckle"
+    },
+    "getaway": {
+      "text": "They'll be seeing me everywhere.",
+      "hum": "chuckle"
+    },
+    "contact": {
+      "text": "Which one of me did that?",
+      "hum": "grunt"
+    },
+    "place": {
+      "text": "Bend it round the corner. Then up a notch.",
+      "hum": "hum"
+    }
+  },
+  "mus-b": {
+    "entry": {
+      "text": "The Grand Staircase. Descend like you own it.",
+      "hum": "hum"
+    },
+    "nearMiss": {
+      "text": "Posture, posture.",
+      "hum": "tsk"
+    },
+    "land": {
+      "text": "Stair rod. Two steps. Perfect posture.",
+      "hum": "chuckle"
+    },
+    "alarm": {
+      "text": "Tumbling would've been quieter.",
+      "hum": "grunt"
+    },
+    "contact": {
+      "text": "Tripped on the beat.",
+      "hum": "grunt"
+    },
+    "getaway": {
+      "text": "And the foyer applauds.",
+      "hum": "chuckle"
+    }
+  },
+  "mus-4": {
+    "entry": {
+      "text": "No one crosses Sir Ambrose's floor. I'll take the balcony.",
+      "hum": "hum"
+    },
+    "place": {
+      "text": "Down the well it goes.",
+      "hum": "hum"
+    },
+    "nearMiss": {
+      "text": "Sir Ambrose is watching. Of course he is.",
+      "hum": "tsk"
+    },
+    "overshoot": {
+      "text": "A touch too much gallery.",
+      "hum": "grunt"
+    },
+    "alarm": {
+      "text": "The floor's awake. Mind the plates.",
+      "hum": "grunt"
+    },
+    "clean": {
+      "text": "Not one floorboard troubled.",
+      "hum": "chuckle"
+    },
+    "lift": {
+      "text": "The whole floor just went live. Upstairs, then.",
+      "hum": "hum"
+    },
+    "getaway": {
+      "text": "Good evening, Sir Ambrose. Do keep an eye on things.",
+      "hum": "chuckle"
+    },
+    "contact": {
+      "text": "Stepped on his floor. He'll write a letter.",
+      "hum": "grunt"
+    }
+  },
+  "mus-5": {
+    "entry": {
+      "text": "Security should be beautiful. It is. So am I.",
+      "hum": "hum"
+    },
+    "statue-see": {
+      "text": "Hang on. That statue's wearing my feather.",
+      "hum": "tsk"
+    },
+    "feather-back": {
+      "text": "I'll take that back, thank you.",
+      "hum": "chuckle"
+    },
+    "nearMiss": {
+      "text": "Statue-still. Then not.",
+      "hum": "tsk"
+    },
+    "peel": {
+      "text": "Peeled off like a stamp.",
+      "hum": "hum"
+    },
+    "alarm": {
+      "text": "Even the marble's looking now.",
+      "hum": "grunt"
+    },
+    "clean": {
+      "text": "A ruby, from a marble hand. She didn't object.",
+      "hum": "chuckle"
+    },
+    "lift": {
+      "text": "The sweeper's split in two. Rude.",
+      "hum": "hum"
+    },
+    "getaway": {
+      "text": "Arrivederci, Odile.",
+      "hum": "chuckle"
+    },
+    "contact": {
+      "text": "Less beautiful.",
+      "hum": "grunt"
+    }
+  },
+  "mus-6": {
+    "entry": {
+      "text": "Every curator's fear, under one dome. Let's not disappoint them.",
+      "hum": "hum"
+    },
+    "place": {
+      "text": "Half up here, half down the grate. Both locks at once.",
+      "hum": "hum"
+    },
+    "nearMiss": {
+      "text": "The stars nearly had me.",
+      "hum": "tsk"
+    },
+    "alarm": {
+      "text": "The whole dome's lit. Lovely, really.",
+      "hum": "grunt"
+    },
+    "clean": {
+      "text": "The Crown. And not a whisker out of place.",
+      "hum": "chuckle"
+    },
+    "lift": {
+      "text": "Every constellation at once. The door's sealed. Up it is.",
+      "hum": "hum"
+    },
+    "overshoot": {
+      "text": "Across the ring. Every inch.",
+      "hum": "grunt"
+    },
+    "contact": {
+      "text": "Seen by the stars.",
+      "hum": "grunt"
+    }
+  },
+  "mus-6g": {
+    "entry": {
+      "text": "Up the ribs and out the skylight.",
+      "hum": "hum"
+    },
+    "yank": {
+      "text": "Arm first. Gentleman follows.",
+      "hum": "grunt"
+    },
+    "nearMiss": {
+      "text": "Mind the constellations.",
+      "hum": "tsk"
+    },
+    "rotate": {
+      "text": "Bend the beam away. Then climb.",
+      "hum": "hum"
+    },
+    "alarm": {
+      "text": "Bit late for discretion.",
+      "hum": "grunt"
+    },
+    "getaway": {
+      "text": "Good night, Gilded Museum.",
+      "hum": "chuckle"
+    },
+    "contact": {
+      "text": "Spotted on the roof. Undignified.",
+      "hum": "grunt"
     }
   }
 }

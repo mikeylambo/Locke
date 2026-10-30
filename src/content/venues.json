@@ -1,5 +1,73 @@
 {
-  "_doc": "Silent-film intertitle shown the first time Locke enters a venue. Lines are cards, shown in order.",
-  "jobs": { "title": "Small Hours", "cards": ["Before the big one, a gentleman keeps his hand in."] },
-  "gilded-museum": { "title": "The Gilded Museum", "cards": ["Midnight on Fifth Avenue.", "Six rooms. Six treasures. Not one of them his.", "Yet."] }
+  "_doc": "Silent-film intertitles. 'jobs' and 'gilded-museum' play the first time Locke enters a venue; 'rooms' cards play the first time he enters that room (set pieces included).",
+  "jobs": {
+    "title": "Small Hours",
+    "cards": [
+      "Before the big one, a gentleman keeps his hand in."
+    ]
+  },
+  "gilded-museum": {
+    "title": "The Gilded Museum",
+    "cards": [
+      "Midnight on Fifth Avenue.",
+      "Six rooms. Six treasures. Not one of them his.",
+      "Yet."
+    ]
+  },
+  "rooms": {
+    "mus-a": {
+      "title": "I. The Skylight",
+      "cards": [
+        "Through the roof, on his own arm."
+      ]
+    },
+    "room-zero": {
+      "title": "II. The Hope of Midnight",
+      "cards": [
+        "A diamond needs no guard but the dark."
+      ]
+    },
+    "mus-2": {
+      "title": "III. The Sapphire Hall",
+      "cards": [
+        "The Metronome keeps the time."
+      ]
+    },
+    "mus-3": {
+      "title": "IV. The Funhouse Mirror Hall",
+      "cards": [
+        "Madame Verre's mirrors exaggerate."
+      ]
+    },
+    "mus-b": {
+      "title": "V. The Grand Staircase",
+      "cards": [
+        "Down, in time with the band."
+      ]
+    },
+    "mus-4": {
+      "title": "VI. The Long Gallery",
+      "cards": [
+        "Sir Ambrose Hale guards his floor."
+      ]
+    },
+    "mus-5": {
+      "title": "VII. The Sculpture Court",
+      "cards": [
+        "Odile Marchetti's beautiful security."
+      ]
+    },
+    "mus-6": {
+      "title": "VIII. The Grand Rotunda",
+      "cards": [
+        "The Crown, under the stars."
+      ]
+    },
+    "mus-6g": {
+      "title": "Up the Dome",
+      "cards": [
+        "The only way out is up."
+      ]
+    }
+  }
 }

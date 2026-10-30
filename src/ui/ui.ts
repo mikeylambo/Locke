@@ -368,12 +368,12 @@ export class UI {
   }
 
   /** Heist map: every vault in order with its best grade; locked ones stay dark. */
-  heistMap(groups: Array<{ title: string; rooms: Array<{ id: string; name: string; grade?: string; locked: boolean }> }>, onPick: (id: string) => void, onBack: () => void) {
+  heistMap(groups: Array<{ title: string; rooms: Array<{ id: string; name: string; grade?: string; locked: boolean; tag?: string; setPiece?: boolean }> }>, onPick: (id: string) => void, onBack: () => void) {
     const node = el("div", "screen map-screen");
     node.innerHTML = `<div class="card deco-frame wide map"><h2>The Jobs</h2></div>`;
     const items: MenuItem[] = [];
     for (const g of groups) for (const [i, r] of g.rooms.entries()) items.push({
-      id: r.id, label: `${i === 0 ? `<em class="venue">${g.title}</em>` : ""}<span class="room-name">${r.locked ? "· · ·" : r.name}</span>${r.grade ? `<b class="grade-chip grade-${r.grade.toLowerCase()}">${r.grade}</b>` : ""}`,
+      id: r.id, label: `${i === 0 ? `<em class="venue">${g.title}</em>` : ""}${r.tag ? `<i class="room-tag ${r.setPiece ? "set" : ""}">${r.tag}</i>` : ""}<span class="room-name">${r.locked ? "· · ·" : r.name}</span>${r.grade ? `<b class="grade-chip grade-${r.grade.toLowerCase()}">${r.grade}</b>` : ""}`,
       disabled: r.locked, action: () => onPick(r.id)
     });
     items.push({ id: "back", label: "Back", action: onBack });

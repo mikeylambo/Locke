@@ -162,6 +162,18 @@ export class RoomView {
   readonly shutters = new Map<string, { g: THREE.Group; h: number; open: number }>();
   readonly plates = new Map<string, { mat: THREE.MeshBasicMaterial; top: THREE.Mesh; down: number }>();
   private obscuraLamp?: THREE.MeshBasicMaterial;
+  private decks: Array<{ floor: number; deck: THREE.MeshStandardMaterial; smoke: THREE.MeshBasicMaterial }> = [];
+  private deckFocus = -1;
+  /** Two-storey rooms: the deck goes see-through while he's below it, solid underfoot when he's on it. */
+  setFloorFocus(f: number) {
+    if (f === this.deckFocus) return;
+    this.deckFocus = f;
+    for (const d of this.decks) {
+      const below = f < d.floor;
+      d.deck.opacity = below ? 0.35 : 1; d.deck.transparent = true;
+      d.smoke.opacity = below ? 0.05 : 0.55;
+    }
+  }
   /** The feather the Sculpture Court statue is holding (shown only while it's his). */
   readonly statueFeathers: THREE.Object3D[] = [];
   private pupils: Array<{ m: THREE.Mesh; c: THREE.Vector3 }> = [];
@@ -550,6 +562,11 @@ export class RoomView {
       vase.position.y = y;
       vase.scale.setScalar(Math.min(1.2, glassH / 0.45));
       g.add(vase);
+    } else if (style === "plinth" && b.stand) {
+      // A step-up plinth: polished marble top with a brass edge, nothing on it but room for a gentleman.
+      const top = new THREE.Mesh(new THREE.BoxGeometry(b.w - 0.04, 0.012, b.d - 0.04), this.mat("marble", () => new THREE.MeshStandardMaterial({ color: "#d8cfc0", roughness: 0.3, metalness: 0.05, envMapIntensity: 0.8 })));
+      top.position.y = y + 0.006;
+      g.add(top);
     } else if (style === "plinth") {
       // A deco bust: stacked forms reading as a statue.
       const bust = new THREE.Group();
@@ -726,10 +743,13 @@ export class RoomView {
     // World-scale UVs: one grille tile per 0.5 m.
     const uv = geo.attributes.uv as THREE.BufferAttribute, pos = geo.attributes.position as THREE.BufferAttribute;
     for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) * 2, pos.getY(i) * 2);
-    const deck = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.2, metalness: 0.8, roughness: 0.4, side: THREE.DoubleSide, depthWrite: true }));
+    const deckMat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.2, metalness: 0.8, roughness: 0.4, side: THREE.DoubleSide, depthWrite: true });
+    const deck = new THREE.Mesh(geo, deckMat);
     deck.rotation.x = -Math.PI / 2; deck.position.y = y;
     this.group.add(deck);
-    const smoke = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: "#07060a", transparent: true, opacity: 0.35, depthWrite: false }));
+    const smokeMat = new THREE.MeshBasicMaterial({ color: "#07060a", transparent: true, opacity: 0.35, depthWrite: false });
+    this.decks.push({ floor: f, deck: deckMat, smoke: smokeMat });
+    const smoke = new THREE.Mesh(geo, smokeMat);
     smoke.rotation.x = -Math.PI / 2; smoke.position.y = y - 0.01;
     this.group.add(smoke);
     const rail = new THREE.Group();
@@ -951,8 +971,7 @@ export class RoomView {
     feather.position.set(b.x + 0.47, (b.floor ?? 0) * FLOOR_H + 0.54 + 1.33, b.z + 0.05);
     feather.rotation.z = -0.3;
     feather.visible = false;
-    this.group.add(feather);
-    this.statueFeathers.push(feather);
+    if (b.holds === "feather") { this.group.add(feather); this.statueFeathers.push(feather); }
     return g;
   }
 
@@ -1015,6 +1034,17 @@ export class RoomView {
     const sky = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.2), new THREE.MeshBasicMaterial({ color: new THREE.Color("#9fb4ff").multiplyScalar(0.9), toneMapped: false }));
     sky.rotation.x = Math.PI / 2; sky.position.set(this.room.entry.x, d - 0.01, 0);
     this.group.add(sky);
+    // The moon, framed by the skylight: the getaway's hat tip has somewhere to go.
+    const moon = new THREE.Mesh(new THREE.CircleGeometry(0.3, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff4d6").multiplyScalar(1.05), toneMapped: false }));
+    moon.position.set(-w / 2 + 1.2, d - 0.7, -0.68);
+    this.group.add(moon);
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(0.9, 40), new THREE.MeshBasicMaterial({ color: new THREE.Color("#7f8cff").multiplyScalar(0.08), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    halo.position.set(moon.position.x, moon.position.y, -0.69);
+    this.group.add(halo);
+    // A cool moonlight wash down the back wall.
+    const wash = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.7, d), new THREE.MeshBasicMaterial({ color: new THREE.Color("#5868b8").multiplyScalar(0.08), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    wash.position.set(0, d / 2, -0.67);
+    this.group.add(wash);
     for (const ex of [this.room.entry, ...this.room.exits]) {
       const p = this.space.at(ex.x, ex.z);
       const frame = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.1, 0.1), this.brass());

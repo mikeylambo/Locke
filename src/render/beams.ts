@@ -115,6 +115,8 @@ export class BeamView {
   /** Camera obscura: hidden beams drawn at full strength (and remembered faintly after). */
   reveal = 0;
   space: Space | null = null;
+  /** The floor Locke is on: beams on other floors are drawn as quiet reference lines. */
+  focusFloor = 0;
   private pa = new THREE.Vector3();
   private pb = new THREE.Vector3();
 
@@ -135,7 +137,8 @@ export class BeamView {
         if (seg.band !== "mid") continue;
         this.pa.y = (seg.floor - 1) * FLOOR_H + 0.05; this.pb.y = seg.floor * FLOOR_H + 2.1;
       }
-      const hide = seg.hidden ? 0.12 + 0.88 * this.reveal : 1;
+      const other = !seg.vertical && seg.floor !== this.focusFloor;
+      const hide = (seg.hidden ? 0.12 + 0.88 * this.reveal : 1) * (other ? 0.22 : 1);
       const col = this.colorFor(seg, time, this.tmp);
       const tr = this.tripped.get(seg.emitter) ?? 0;
       const sz = this.sizzle.get(seg.emitter) ?? 0;
@@ -148,8 +151,8 @@ export class BeamView {
       const cr = col.r + (1 - col.r) * whiten, cg = col.g + (1 - col.g) * whiten, cb = col.b + (1 - col.b) * whiten;
       for (const [L, width, inten, flat, yy] of [
         [core, 0.008, 7, 0, y],
-        [glow, 0.075, 0.3, 0, y],
-        [floor, 0.32, side || seg.vertical ? 0 : 0.22 * (1.6 - y * 0.5), 1, 0.012]
+        [glow, other ? 0.03 : 0.075, 0.3, 0, y],
+        [floor, 0.32, side || seg.vertical || other ? 0 : 0.22 * (1.6 - y * 0.5), 1, 0.012]
       ] as const) {
         const dy = L === floor ? yy - y : 0;
         L.a[n * 3] = this.pa.x; L.a[n * 3 + 1] = this.pa.y + dy; L.a[n * 3 + 2] = this.pa.z;

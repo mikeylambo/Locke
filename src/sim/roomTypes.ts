@@ -15,7 +15,9 @@ export const BAND_SHIFT: Partial<Record<OpticKind, 1 | -1>> = { concave: 1, conv
 
 export interface BlockDef { x: number; z: number; w: number; d: number; h: number; style?: "plinth" | "case" | "column" | "post" | "pedestal" | "sensor" | "rail" | "statue" | "ledge" | "screen"; solid?: boolean;
   /** Locke can step up onto it: his body rides one band higher while on top. */
-  stand?: boolean; floor?: number }
+  stand?: boolean; floor?: number;
+  /** Statues: what's in the open hand (the feather gag). */
+  holds?: "feather" }
 export interface MountDef { id: string; x: number; z: number; floor?: number;
   /** Light reflected off an optic here drops (or rises) through a grate onto this floor. */
   well?: number;

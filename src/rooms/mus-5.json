@@ -85,7 +85,8 @@
       "w": 0.8,
       "d": 0.8,
       "h": 2.2,
-      "style": "statue"
+      "style": "statue",
+      "holds": "feather"
     },
     {
       "x": 0.0,
